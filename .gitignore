@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Test/analysis outputs
+*.json
+test_ds_*.pdf
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store

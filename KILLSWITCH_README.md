@@ -93,14 +93,44 @@ where `δ_L` is the linear-theory density field. This operation:
 
 ### 3. Recovery Score Calculation
 
+**Distance-Based Closure Metric** (robust against sign ambiguities):
+
 ```
-Recovery Score = 100 × (d_s*[RECON] - d_s*[HON1]) / (d_s*[DATA] - d_s*[HON1])
+Recovery Score = 100 × (1 - |d_s*[RECON] - d_s*[DATA]| / |d_s*[HON1] - d_s*[DATA]|)
 ```
 
+This formula treats the problem as: **"How much of the gap between HON-1 and DATA did RECON close?"**
+
 **Interpretation:**
-- **100%:** Perfect recovery — RECON fully restores the original signal
-- **0%:** No recovery — RECON performs identically to phase randomization
-- **> 100%:** Over-recovery — reconstruction overshoots (possible with aggressive smoothing)
+- **100%:** Perfect recovery — RECON closes the gap completely (RECON ≈ DATA)
+- **0%:** No recovery — RECON does not move toward DATA (RECON ≈ HON-1)
+- **< 0%:** Negative recovery — RECON moves *away* from DATA (worse than phase randomization)
+
+**Why Distance-Based?**
+- Avoids sign convention confusion when d_s*[DATA] < d_s*[HON1]
+- Symmetric: treats over-shoot and under-shoot equivalently
+- Monotonic: always increases as RECON approaches DATA
+
+### 4. The Ensemble Approach (Audit-Grade Robustness)
+
+**Single-shot tests are insufficient for publication.** To immunize the verdict against parameter choices and random fluctuations, the analysis should be run as an ensemble sweep:
+
+**Grid Parameters:**
+- **RANN:** Multiple independent random catalog realizations (0, 1, 2)
+  - DESI DR1 provides 18 independent RANN; testing 3 ensures diversity
+- **HON-1 Seeds:** Multiple phase randomization seeds (0-9)
+  - Verifies that phase destruction is statistically robust
+- **Smoothing:** BAO reconstruction smoothing scales (15, 20 Mpc/h)
+  - Tests sensitivity to reconstruction parameter choices
+
+**Total: 3 × 10 × 2 = 60 independent measurements**
+
+**Ensemble Statistics:**
+- Mean and standard deviation of Recovery Score
+- Confidence assessment (HIGH if std < 10%, LOW if std > 20%)
+- Verdict consistency check (do all runs agree?)
+
+**Use `run_killswitch_ensemble.sbatch` for production-grade analysis.**
 
 ---
 
@@ -140,7 +170,36 @@ np.save("survey_data_weights.npy", data_w)
 np.save("survey_random_weights.npy", rand_w)
 ```
 
-### Run on Cluster
+### Run on Cluster: Ensemble Mode (RECOMMENDED)
+
+**For publication-grade results, use the ensemble launcher:**
+
+1. **Edit `run_killswitch_ensemble.sbatch`:**
+   - Update `#SBATCH` directives for your cluster (partition, time, memory)
+   - Set paths to your DESI DR1 LSS catalogs (lines ~55-60)
+     - Use the `clustering` products as recommended by DESI DR1
+     - Provide paths to RANN=0, 1, 2 random catalogs
+   - Adjust cosmological parameters (`F`, `BIAS`, `BOXSIZE`) to match your survey
+
+2. **Submit ensemble job:**
+   ```bash
+   sbatch run_killswitch_ensemble.sbatch
+   ```
+
+3. **Monitor progress:**
+   ```bash
+   tail -f logs/ensemble_*.out
+   ```
+
+4. **View results:**
+   The script automatically generates:
+   - `out_grid/killswitch_RANN*_seed*_smooth*.json` (60 individual runs)
+   - `results/killswitch_ensemble_summary.json` (aggregated statistics)
+   - Ensemble verdict printed to terminal
+
+**Ensemble Runtime:** ~4-6 hours on 16 CPUs (depends on nmesh, q, survey size)
+
+### Run on Cluster: Single-Shot Mode (for testing)
 
 1. **Edit `run_killswitch.sbatch`:**
    - Update `#SBATCH` directives for your cluster (partition, time, memory)
@@ -156,6 +215,8 @@ np.save("survey_random_weights.npy", rand_w)
    ```bash
    tail -f killswitch_*.out
    ```
+
+**Note:** Single-shot mode is useful for testing but insufficient for publication. Always run the ensemble for final analysis.
 
 ### Run Locally (for testing with small datasets)
 
@@ -261,20 +322,28 @@ d_s* RECON = 2.28  [-0.24 from phase recovery]
 
 ### If RECOVERY (> 50%):
 
-The cosmic web's spectral dimension anomaly is driven by **coherent phase relationships** in the Fourier decomposition of the density field. This has profound implications:
+**Bounded Interpretation:** BAO reconstruction (pyrecon) moves d_s* from HON-1 toward DATA under the survey window, demonstrating that **phase information is relevant to this statistic**.
 
-1. **New Cosmological Observable:** Traditional analyses (power spectrum, correlation function) miss critical information encoded in phases.
+**What This Means:**
+1. **Phase Coherence Matters:** The spectral dimension signal depends on phase relationships in δ_k, not just the power spectrum P(k).
 
-2. **Structure Formation Imprint:** The gravitational collapse process creates non-random phase coherence that survives to z=0.
+2. **Reconstruction Works:** pyrecon's displacement field (based on large-scale coherent flows) recovers topological connectivity properties that are destroyed by phase randomization.
 
-3. **Topological Information:** Graph-based diagnostics (spectral dimension, persistent homology) capture information inaccessible to traditional statistics.
+3. **New Observable Space:** Graph-based diagnostics capture information inaccessible to traditional two-point statistics.
 
-4. **Theoretical Puzzles:**
-   - Why do phases remain coherent after non-linear evolution?
-   - What is the physical origin of the spectral horizon?
-   - Can this constrain dark matter/modified gravity models?
+**Important Caveats:**
+- This does NOT prove "we recovered the true primordial phases" (reconstruction is a specific linear displacement operation, not a full Bayesian phase posterior)
+- The signal is measured under survey windowing; edge effects may contribute
+- Robustness must be verified across the ensemble (multiple seeds, RANN, smoothing scales)
 
-**Action:** Prepare manuscript, investigate physical mechanisms, apply to other surveys.
+**Next Steps:**
+1. Verify ensemble consistency (std < 10% and no verdict changes)
+2. Test on mock catalogs with known phase structure for validation
+3. Investigate physical origin: Why are phases coherent? (gravitational collapse dynamics)
+4. Apply to other surveys (DESI, Euclid) to confirm universality
+5. Prepare manuscript with this diagnostic as a key robustness test
+
+**Action:** Prepare manuscript IF ensemble is consistent. Investigate physical mechanisms. Apply to other surveys.
 
 ### If INCONCLUSIVE (20-50%):
 
@@ -290,17 +359,42 @@ The signal shows **partial phase dependence**, but confounding factors complicat
 
 ### If KILL (< 20%):
 
-The spectral dimension anomaly is **NOT driven by phase coherence**. It is an artifact.
+**Bounded Interpretation:** This specific reconstruction method (pyrecon with these parameters) does NOT close the gap between HON-1 and DATA. **Phase information may still be present but is not accessible via linear displacement fields.**
 
-**Likely Culprits:**
-1. **Graph Construction Bias:** The voxel graph connectivity is artificially imposed by quantile thresholding and neighbor rules
-2. **Survey Masking:** Non-periodic boundary conditions and irregular survey geometry create spurious topology
-3. **Finite-Size Effects:** The eigenspectrum of small graphs is dominated by edge effects
-4. **Numerical Artifacts:** Logarithmic derivatives amplify noise; plateau identification is subjective
+**What This Means:**
+- BAO reconstruction fails to recover the spectral dimension signal
+- The anomaly may be driven by factors other than large-scale coherent phase structure
+- Linear displacement field approximation may be insufficient
 
-**Action:** **Do not publish as cosmological discovery.** Archive the analysis as a lesson in the dangers of interpreting graph-based diagnostics in windowed survey data.
+**This DOES NOT automatically prove:**
+- "The signal is a pure artifact" (other phase recovery methods might work)
+- "Survey masking is the sole cause" (requires dedicated masking tests with synthetic catalogs)
+- "Graph construction is artificial" (requires comparison with alternative topology diagnostics)
 
-**The honest map must remain honest.** This kill-switch has provided the definitive answer.
+**Most Likely Explanations (ranked by plausibility):**
+
+1. **Phase Structure is Sub-Linear Scale:**
+   - Small-scale coherence not recovered by large-scale displacement fields
+   - Non-linear structure formation dominates over linear reconstruction
+   - Requires higher-order reconstruction methods
+
+2. **Survey Window and Selection:**
+   - Non-periodic boundaries create edge effects that dominate the signal
+   - Selection function (min_rand threshold) may be inadequate
+   - Alpha normalization introduces systematic topology changes
+
+3. **Graph Construction Choices:**
+   - Quantile threshold q creates artificial connectivity
+   - Connectivity rule (6 vs 26 neighbors) affects eigenspectrum
+   - Mesh resolution too coarse to capture relevant scales
+
+**Recommended Follow-Up (if ensemble is consistent):**
+1. Test alternative reconstruction methods (Gaussian field realizations, N-body mock comparison)
+2. Investigate masking effects with controlled synthetic catalogs
+3. Validate graph construction against alternative topology diagnostics (persistent homology, Minkowski functionals)
+4. Compare with periodic-box simulations to isolate survey geometry effects
+
+**Action:** **Do NOT publish as a phase-driven cosmological discovery** without additional controls. Document the null result honestly. The honest map remains honest when it says "we don't know yet."
 
 ---
 
@@ -324,9 +418,15 @@ If this methodology proves useful for your research, please cite:
 | File | Purpose |
 |------|---------|
 | `phase_reconstruction_recovery.py` | Main analysis script (DATA, HON-1, RECON comparison) |
-| `run_killswitch.sbatch` | SLURM batch script for cluster deployment |
-| `analyze_killswitch_results.py` | Verdict generator (computes Recovery Score) |
+| `analyze_killswitch_results.py` | Single-run verdict generator (computes Recovery Score) |
+| `run_killswitch.sbatch` | SLURM script for single-shot testing |
+| **`run_killswitch_ensemble.sbatch`** | **SLURM script for audit-grade ensemble (RECOMMENDED)** |
+| **`summarize_killswitch_ensemble.py`** | **Ensemble aggregation and statistical verdict** |
 | `KILLSWITCH_README.md` | This documentation |
+
+**For publication:** Use `run_killswitch_ensemble.sbatch` (60 runs) + `summarize_killswitch_ensemble.py`
+
+**For testing:** Use `run_killswitch.sbatch` (1 run) + `analyze_killswitch_results.py`
 
 ---
 

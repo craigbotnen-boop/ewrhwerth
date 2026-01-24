@@ -4,14 +4,19 @@ Kill-Switch Verdict Generator
 
 This script analyzes the output from phase_reconstruction_recovery.py and
 computes the **Recovery Score**, the ultimate metric that determines whether
-cosmic web spectral dimension anomalies are real physics or artifacts.
+cosmic web spectral dimension anomalies are phase-driven.
 
-Recovery Score = 100 * (d_s*[RECON] - d_s*[HON1]) / (d_s*[DATA] - d_s*[HON1])
+Recovery Score = 100 * (1 - |d_s*[RECON] - d_s*[DATA]| / |d_s*[HON1] - d_s*[DATA]|)
+
+Distance-based closure metric:
+  100% = RECON closes the gap (RECON ≈ DATA)
+  0%   = RECON does not move toward DATA (RECON ≈ HON1)
+  <0%  = RECON moves away from DATA (worse than HON1)
 
 Interpretation:
-  >50%  → RECOVERY:      The discovery stands. Phase coherence is essential.
+  >50%  → RECOVERY:      Phase information is relevant to this statistic.
   20-50% → INCONCLUSIVE: Partial phase dependence; confounding factors present.
-  <20%  → KILL:          Retire the theory. Phases don't matter.
+  <20%  → KILL:          This reconstruction does not close the gap.
 """
 
 import argparse
@@ -22,13 +27,14 @@ import numpy as np
 
 def compute_recovery_score(ds_data, ds_hon1, ds_recon):
     """
-    Compute the phase recovery score.
+    Compute the phase recovery score using distance-based closure metric.
 
-    If reconstruction recovers the original signal (d_s*[RECON] ≈ d_s*[DATA]),
-    then the numerator ≈ denominator and Recovery Score ≈ 100%.
+    This robust formula avoids sign ambiguities and treats the problem as:
+    "How much of the gap between HON1 and DATA did RECON close?"
 
-    If reconstruction fails like phase randomization (d_s*[RECON] ≈ d_s*[HON1]),
-    then the numerator ≈ 0 and Recovery Score ≈ 0%.
+    100% = RECON is identical to DATA (Full Recovery)
+    0%   = RECON is identical to HON-1 (No Recovery)
+    < 0% = RECON moved further away from DATA than the Null was
 
     Parameters
     ----------
@@ -42,18 +48,23 @@ def compute_recovery_score(ds_data, ds_hon1, ds_recon):
     Returns
     -------
     recovery_score : float
-        Recovery percentage (0-100+, can exceed 100% if recon overshoots)
+        Recovery percentage (0-100 for partial recovery, can be <0 or >100)
     """
-    denominator = ds_data - ds_hon1
-    numerator = ds_recon - ds_hon1
+    total_gap = abs(ds_hon1 - ds_data)
 
-    if abs(denominator) < 1e-6:
+    if total_gap < 1e-9:
         # Degenerate case: DATA and HON1 are identical
-        # This means phase randomization had no effect → phases don't matter
+        # Phase randomization had no effect → phases don't matter
         return 0.0
 
-    recovery_score = 100.0 * numerator / denominator
-    return recovery_score
+    remaining_gap = abs(ds_recon - ds_data)
+
+    # 1.0 means remaining_gap is 0 (Perfect recovery)
+    # 0.0 means remaining_gap equals total_gap (No movement toward DATA)
+    # Negative means RECON moved away from DATA (worse than HON1)
+    score = (1.0 - (remaining_gap / total_gap)) * 100.0
+
+    return score
 
 
 def generate_verdict(recovery_score):
@@ -70,25 +81,30 @@ def generate_verdict(recovery_score):
     if recovery_score > 50.0:
         verdict = "RECOVERY"
         interpretation = """
-🟢 **THE DISCOVERY STANDS.**
+🟢 **PHASE INFORMATION IS RELEVANT TO THIS STATISTIC.**
 
-Phase coherence is the load-bearing ingredient of the cosmic web connectivity anomaly.
-BAO reconstruction successfully recovers the spectral dimension signal, demonstrating
-that the phases of Fourier modes encode essential information about the web's topology.
+BAO reconstruction (pyrecon) moves d_s* from HON-1 toward DATA under the survey window,
+closing >50% of the gap created by phase randomization. This demonstrates that phase
+coherence in the density field is a load-bearing ingredient of the spectral dimension signal.
 
-This is a genuine physical signal, not a measurement artifact.
+**Bounded Interpretation:**
+- Phase information encoded in δ_k affects the graph-based spectral dimension
+- Standard two-point statistics P(k), ξ(r) do not capture this phase dependence
+- The reconstruction's displacement field (based on large-scale coherent flows) recovers
+  topological connectivity properties that are destroyed by phase randomization
 
-**Scientific Implications:**
-- The connectivity of the universe is written into the phases of δ_k
-- Standard cosmological observables (P(k), ξ(r)) are insufficient to capture web topology
-- Phase information is critical for understanding large-scale structure formation
-- The "spectral horizon" phenomenon is a robust cosmological observable
+**Important Caveats:**
+- This does NOT prove "we recovered the true primordial phases" (reconstruction is
+  a specific linear displacement operation, not a full Bayesian phase posterior)
+- The signal is measured under survey windowing and selection; edge effects may contribute
+- Robustness should be verified across multiple RANN realizations and HON-1 seeds
 
 **Next Steps:**
-1. Prepare manuscript with this diagnostic as a robustness test
-2. Investigate the physical origin of phase coherence in cosmic web formation
-3. Explore implications for structure formation theory and dark matter models
-4. Apply this methodology to other surveys (DESI, Euclid, etc.)
+1. Verify stability across the ensemble (multiple seeds, RANN, smoothing scales)
+2. Investigate physical origin: are phases coherent due to gravitational collapse dynamics?
+3. Test on mock catalogs with known phase structure for validation
+4. Apply to other surveys (DESI, Euclid) to confirm universality
+5. Prepare manuscript with this diagnostic as a key robustness test
 """
 
     elif recovery_score >= 20.0:
@@ -122,37 +138,46 @@ More detailed analysis is needed before publication.
     else:  # recovery_score < 20.0
         verdict = "KILL"
         interpretation = """
-🔴 **RETIRE THE THEORY.**
+🔴 **THIS SPECIFIC RECONSTRUCTION DOES NOT CLOSE THE GAP.**
 
-Phase coherence does NOT explain the spectral dimension anomaly. BAO reconstruction
-fails to recover the signal, performing no better than random phase scrambling.
+BAO reconstruction fails to recover the spectral dimension signal, performing no
+better than random phase scrambling. The gap between DATA and HON-1 is not closed
+by pyrecon's displacement-based phase recovery.
 
-**What This Means:**
-- The cosmic web connectivity anomaly is NOT driven by phase information
-- The signal is likely an artifact of graph construction, survey masking, or analysis choices
-- The "spectral horizon" is a phantom phenomenon, not genuine physics
+**Bounded Interpretation:**
+- This specific reconstruction method (pyrecon with these parameters) does not
+  move d_s* from HON-1 toward DATA
+- Phase information may still be present but not accessible via linear displacement fields
+- The anomaly may be driven by factors other than large-scale coherent phase structure
 
-**Possible Artifact Sources:**
-1. **Graph Construction Bias:**
-   - Quantile threshold (q) creates artificial topology
-   - Connectivity choice (6 vs 26) affects spectral properties
-   - Finite mesh resolution introduces discretization artifacts
+**This DOES NOT automatically prove:**
+- "The signal is a pure artifact" (other phase recovery methods might work)
+- "Survey masking is the sole cause" (requires dedicated masking tests)
+- "Graph construction is artificial" (requires comparison with alternative methods)
 
-2. **Survey Window Effects:**
-   - Non-periodic boundary conditions distort the density field
-   - Masking creates spurious correlations in the voxel graph
-   - Alpha correction (data/random normalization) introduces edge effects
+**Most Likely Explanations (in order):**
+1. **Phase structure is sub-linear scale:**
+   - Small-scale coherence not recovered by large-scale displacement fields
+   - Non-linear structure formation dominates over linear reconstruction
 
-3. **Spectral Dimension Calculation:**
-   - Finite-size effects in eigenspectrum
-   - Logarithmic derivative amplifies numerical noise
-   - Plateau identification is subjective (choice of tmin, tmax)
+2. **Survey Window and Selection:**
+   - Non-periodic boundaries create edge effects
+   - Selection function (min_rand threshold) may be inadequate
+   - Alpha correction introduces systematic topology changes
+
+3. **Graph Construction Choices:**
+   - Quantile threshold q creates artificial connectivity
+   - Connectivity rule (6 vs 26 neighbors) affects eigenspectrum
+   - Mesh resolution too coarse to capture relevant scales
 
 **Recommendation:**
-Do NOT publish this result as a cosmological discovery. Archive the analysis as a
-cautionary tale about graph-based topology diagnostics in windowed survey data.
+Do NOT publish the d_s* anomaly as a phase-driven cosmological discovery without
+further controls. Required follow-up:
+- Test alternative reconstruction methods (Gaussian random field realizations, N-body mocks)
+- Investigate masking effects with controlled synthetic catalogs
+- Validate graph construction against alternative topology diagnostics
 
-The honest map must remain honest. This kill-switch has spoken.
+The honest map must remain honest. This kill-switch indicates caution is warranted.
 """
 
     return verdict, interpretation

@@ -208,6 +208,7 @@ def main():
     ap.add_argument("--boxcenter", type=float, default=0.0, help="if scalar, uses [c,c,c]")
     ap.add_argument("--q", type=float, default=0.97, help="top-quantile for web voxels")
     ap.add_argument("--connectivity", type=int, default=6, choices=[6, 26])
+    ap.add_argument("--min-rand", type=float, default=1.0, help="min expected randoms per cell for delta mask (selection function threshold)")
 
     ap.add_argument("--hon1-seed", type=int, default=0)
     ap.add_argument("--f", type=float, default=0.8, help="growth rate f for reconstruction")
@@ -231,7 +232,7 @@ def main():
     # 1) Build observed density mesh and delta
     data_mesh = cic_mesh(data_pos, data_w, args.boxsize, boxcenter, nmesh)
     rand_mesh = cic_mesh(rand_pos, rand_w, args.boxsize, boxcenter, nmesh)
-    delta_data, alpha = density_contrast(data_mesh, rand_mesh)
+    delta_data, alpha = density_contrast(data_mesh, rand_mesh, min_rand=args.min_rand)
 
     # 2) HON-1: phase randomize delta at fixed |F(k)|
     delta_hon1 = phase_randomize_real_field(delta_data, seed=args.hon1_seed)
@@ -245,7 +246,7 @@ def main():
     )
     data_mesh_rec = cic_mesh(data_pos_rec, data_w, args.boxsize, boxcenter, nmesh)
     rand_mesh_rec = cic_mesh(rand_pos_rec, rand_w, args.boxsize, boxcenter, nmesh)
-    delta_recon, _ = density_contrast(data_mesh_rec, rand_mesh_rec, alpha=alpha)
+    delta_recon, _ = density_contrast(data_mesh_rec, rand_mesh_rec, alpha=alpha, min_rand=args.min_rand)
 
     # 4) Build graphs and compute d_s(t)
     tvals = np.logspace(-2, 1.2, 24)  # dimensionless times; consistent across comparisons
@@ -274,9 +275,16 @@ def main():
             "recon": res_recon["n_nodes"],
         },
         "tvals": tvals.tolist(),
+        "reconstruction_convention": "RecIso (field='disp' for randoms)" if args.reciso else "RecSym (default pyrecon behavior)",
+        "selection_function": {
+            "min_rand_threshold": args.min_rand,
+            "description": f"Voxels with alpha*n_rand < {args.min_rand} are masked (set to zero in delta field)"
+        },
         "notes": {
             "hon1": "Phase randomization applied to survey-windowed delta field on finite box (not periodic cosmological volume).",
-            "delta_masking": "Cells with insufficient random support set to zero in delta."
+            "delta_masking": f"Cells with insufficient random support (< {args.min_rand} expected randoms) are masked to avoid division-by-zero artifacts.",
+            "reconstruction": "BAO reconstruction via pyrecon uses linear displacement field to approximately invert Zel'dovich dynamics.",
+            "audit_grade": "For referee-proof results, run ensemble over multiple HON-1 seeds, RANN realizations, and smoothing scales."
         }
     }
     with open(args.out, "w") as f:

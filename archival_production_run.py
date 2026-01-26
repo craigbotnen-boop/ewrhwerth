@@ -334,7 +334,13 @@ def run_archival_production(config_path, level=4, n_realizations=100):
 
 
 if __name__ == "__main__":
-    config_path = "stargate_gate_v2.0.5-ARCHIVAL.json"
+    import argparse
 
-    # Small test run first (10 realizations) to verify LVW works
-    run_archival_production(config_path, level=4, n_realizations=10)
+    parser = argparse.ArgumentParser(description='STARGATE-UNIVERSAL Archival Production Run')
+    parser.add_argument('--level', type=int, default=4, help='Carpet level (L=3^level)')
+    parser.add_argument('--realizations', type=int, default=10, help='Number of realizations')
+    parser.add_argument('--config', type=str, default='stargate_gate_v2.0.5-ARCHIVAL.json', help='Config path')
+
+    args = parser.parse_args()
+
+    run_archival_production(args.config, level=args.level, n_realizations=args.realizations)

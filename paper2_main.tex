@@ -82,6 +82,10 @@ Systems that violate the URC exhibit transport failure. The GBM Necrotic Core (r
 
 These results suggest that "Scale-Invariance" is not merely a statistical curiosity but a functional requirement for survival. The alignment of the Cosmic Web and Biological Vasculature within the same spectral band implies that gravity (on cosmological scales) and biological growth (on tissue scales) may optimize for similar transport objectives: maximizing reach while minimizing latency. The URC framework provides a new language for network diagnostics. Whether debugging a congested AI data center or diagnosing a malignant tumor, the spectral dimension serves as a vital sign of the system's transport health.
 
+\section*{Limitations}
+
+STARGATE-RW estimates transport observables from sparse graph representations and therefore inherits scale-dependence and boundary sensitivity from the underlying sampling. In highly sparse regimes, local neighbourhood graphs may fail to sustain an intermediate-time scaling window required for reliable spectral-dimension inference; in such cases the software reports explicit failure modes rather than returning unstable estimates. Similarly, survey masks and footprint boundaries induce mode mixing in harmonic statistics; STARGATE-RW mitigates this via pseudo-$C_\ell$ estimation (NaMaster) with cached mode-coupling matrices and apodised masks, but statistical significance ultimately depends on a suitable null ensemble. When survey-specific simulations are unavailable, the repository includes surrogate-null options (e.g., phase-randomised fields preserving $C_\ell$) for pipeline validation and sensitivity analysis; these surrogates should be interpreted as conservative consistency checks rather than replacements for instrument-provided simulation suites.
+
 \section*{Data Availability}
 The datasets generated and/or analysed during the current study are available from the corresponding author on reasonable request.
 

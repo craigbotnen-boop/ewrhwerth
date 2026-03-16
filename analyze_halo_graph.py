@@ -1,16 +1,22 @@
 """
 Halo Graph Analysis Pipeline
 
-Generates a pilot-scale synthetic dark-matter halo catalog with cosmic-web
-topology (filaments + nodes + voids), builds a proximity graph, saves it as
-an edgelist, then runs:
+Generates a synthetic dark-matter halo catalog with cosmic-web topology
+(filaments + nodes + voids), builds a proximity graph, saves it as an
+edgelist, then runs:
   1. Spectral dimension (d_s) analysis
   2. Correlation dimension (D_2) analysis
   3. Forensic validation suite (whitening, radial null, phase surrogate)
 
-Designed to run on a machine with >= 4 GB RAM and 4 cores.
+Supports pilot (2k) through stress-test (100k+) scales on a single
+workstation with >= 8 GB RAM.
+
+Usage:
+  python analyze_halo_graph.py                    # 2k pilot (default)
+  python analyze_halo_graph.py --n_halos 100000   # 100k stress test
 """
 
+import argparse
 import numpy as np
 import networkx as nx
 from scipy.spatial import cKDTree
@@ -24,6 +30,36 @@ import os
 from diffusion_spectral_dimension import compute_spectral_dimension, plot_spectral_dimension
 from correlation_dimension import compute_D2_full, plot_D2_diagnostic
 from forensic_validation_suite import run_forensic_validation, plot_forensic_validation
+
+
+def auto_keig(n_nodes):
+    """Auto-select number of eigenpairs: min(512, max(128, int(sqrt(N))))."""
+    return min(512, max(128, int(np.sqrt(n_nodes))))
+
+
+def graph_sanity_check(G, label="Graph"):
+    """Print degree stats and GCC fraction before launching heavy compute."""
+    N = G.number_of_nodes()
+    M = G.number_of_edges()
+    degrees = [d for _, d in G.degree()]
+    gcc_size = max(len(c) for c in nx.connected_components(G))
+    gcc_frac = gcc_size / N
+
+    print(f"  --- {label} sanity check ---")
+    print(f"  Nodes: {N:,}  Edges: {M:,}")
+    print(f"  Degree — mean: {np.mean(degrees):.1f}  "
+          f"median: {np.median(degrees):.0f}  "
+          f"min: {min(degrees)}  max: {max(degrees)}")
+    print(f"  GCC: {gcc_size:,} / {N:,} ({gcc_frac:.1%})")
+
+    if gcc_frac < 0.9:
+        print(f"  WARNING: GCC covers only {gcc_frac:.1%} of nodes — "
+              "consider increasing k_nn or linking_length")
+    if np.mean(degrees) < 4:
+        print(f"  WARNING: Mean degree {np.mean(degrees):.1f} is low — "
+              "graph may be too sparse for reliable d_s")
+
+    return {'mean_deg': np.mean(degrees), 'gcc_frac': gcc_frac}
 
 
 # ============================================================================
@@ -48,22 +84,23 @@ def generate_cosmic_web_halos(
     - Nodes: dense clusters at filament intersections
     - Field: sparse halos in low-density regions (sheet/void)
 
+    Vectorized for efficiency at N >= 100k.
     Returns xyz positions in comoving Mpc/h.
     """
     rng = np.random.default_rng(seed)
 
-    halos = []
+    # Scale filament count with N for larger catalogs
+    if n_halos > 10000:
+        n_filaments = max(n_filaments, int(np.sqrt(n_halos) / 3))
+        n_nodes = max(n_nodes, int(np.sqrt(n_halos) / 15))
 
-    # -- Cluster nodes (massive halos) --
+    # -- Cluster nodes (massive halos) -- vectorized
     n_node_halos = int(n_halos * 0.15)
     node_centers = rng.uniform(box_size * 0.15, box_size * 0.85, size=(n_nodes, 3))
+    center_idx = rng.integers(0, n_nodes, size=n_node_halos)
+    node_halos = node_centers[center_idx] + rng.normal(0, node_radius, size=(n_node_halos, 3))
 
-    for i in range(n_node_halos):
-        center = node_centers[rng.integers(n_nodes)]
-        pos = center + rng.normal(0, node_radius, size=3)
-        halos.append(pos)
-
-    # -- Filaments (connecting random pairs of nodes) --
+    # -- Filaments (connecting random pairs of nodes) -- vectorized
     n_filament_halos = int(n_halos * 0.50)
     filament_pairs = []
     for _ in range(n_filaments):
@@ -71,31 +108,33 @@ def generate_cosmic_web_halos(
         filament_pairs.append((node_centers[i], node_centers[j]))
 
     per_filament = n_filament_halos // n_filaments
-    for start, end in filament_pairs:
+    filament_halos = np.empty((n_filaments * per_filament, 3))
+
+    for f_idx, (start, end) in enumerate(filament_pairs):
         direction = end - start
         length = np.linalg.norm(direction)
         direction /= length
 
-        # Perpendicular directions
         perp1 = np.cross(direction, rng.standard_normal(3))
         perp1 /= np.linalg.norm(perp1) + 1e-10
         perp2 = np.cross(direction, perp1)
         perp2 /= np.linalg.norm(perp2) + 1e-10
 
-        for _ in range(per_filament):
-            t = rng.uniform(0, 1)
-            pos = start + t * (end - start)
-            # Add transverse scatter (filament thickness)
-            pos += rng.normal(0, filament_thickness) * perp1
-            pos += rng.normal(0, filament_thickness) * perp2
-            halos.append(pos)
+        t_vals = rng.uniform(0, 1, size=per_filament)
+        base = start[None, :] + t_vals[:, None] * (end - start)[None, :]
+        scatter = (rng.normal(0, filament_thickness, size=(per_filament, 1)) * perp1[None, :] +
+                   rng.normal(0, filament_thickness, size=(per_filament, 1)) * perp2[None, :])
+
+        sl = slice(f_idx * per_filament, (f_idx + 1) * per_filament)
+        filament_halos[sl] = base + scatter
 
     # -- Field / sheet halos (sparse, filling voids) --
-    n_field = n_halos - len(halos)
-    field_halos = rng.uniform(0, box_size, size=(n_field, 3))
-    halos.extend(field_halos.tolist())
+    n_placed = n_node_halos + len(filament_halos)
+    n_field = n_halos - n_placed
+    field_halos = rng.uniform(0, box_size, size=(max(n_field, 0), 3))
 
-    xyz = np.array(halos[:n_halos])
+    # Concatenate and trim
+    xyz = np.vstack([node_halos, filament_halos, field_halos])[:n_halos]
 
     # Wrap into box
     xyz = xyz % box_size
@@ -111,23 +150,25 @@ def build_halo_graph(xyz, linking_length=None, k_nn=12):
     - k-NN edges for local connectivity
     - Friends-of-friends (FoF) linking for halos within linking_length
 
+    Vectorized edge construction for N >= 100k.
     Returns a NetworkX graph.
     """
     N = xyz.shape[0]
     tree = cKDTree(xyz)
 
-    # k-NN graph
-    distances, indices = tree.query(xyz, k=min(k_nn + 1, N))
+    # k-NN graph — vectorized edge list
+    k_query = min(k_nn + 1, N)
+    distances, indices = tree.query(xyz, k=k_query)
+
+    # Build edge array: (i, j) for all k-NN pairs, skip self (column 0)
+    row = np.repeat(np.arange(N), k_query - 1)
+    col = indices[:, 1:].ravel()
+    valid = col < N
+    edges_knn = set(zip(row[valid].tolist(), col[valid].tolist()))
 
     G = nx.Graph()
     G.add_nodes_from(range(N))
-
-    # Add k-NN edges
-    for i in range(N):
-        for j_idx in range(1, min(k_nn + 1, indices.shape[1])):
-            j = indices[i, j_idx]
-            if j < N:
-                G.add_edge(i, j)
+    G.add_edges_from(edges_knn)
 
     # Optionally add FoF links
     if linking_length is not None:
@@ -154,20 +195,30 @@ def load_edgelist(filepath):
 # 2. Analysis pipeline
 # ============================================================================
 
-def run_full_analysis(xyz, output_prefix="halo_graph"):
+def run_full_analysis(xyz, output_prefix="halo_graph", keig=None):
     """Run spectral dimension, correlation dimension, and forensic validation."""
 
+    N = len(xyz)
     results = {}
 
+    # Auto-select keig
+    if keig is None:
+        keig = auto_keig(N)
+    print(f"\nAnalysis config: N={N:,}, keig={keig}")
+
     # --- Spectral Dimension ---
+    # Always use Lanczos eigsh — it's faster than Hutchinson for keig <= 512
+    # because computing keig eigenvalues once is cheaper than 50*60 expm_multiply calls
     print("\n" + "=" * 70)
     print("SPECTRAL DIMENSION ANALYSIS")
     print("=" * 70)
     t0 = time.time()
+
     sd_result = compute_spectral_dimension(
-        xyz, k=15, n_eigs=200, n_times=60,
+        xyz, k=15, n_eigs=keig, n_times=60,
         t_min=0.01, t_max=200.0, verbose=True
     )
+
     dt = time.time() - t0
     print(f"Time: {dt:.1f}s")
     results['spectral_dimension'] = sd_result
@@ -177,21 +228,27 @@ def run_full_analysis(xyz, output_prefix="halo_graph"):
     print("CORRELATION DIMENSION ANALYSIS")
     print("=" * 70)
     t0 = time.time()
+
+    # Scale bootstrap iterations with N (fewer for large N since each is slower)
+    B = 50 if N <= 10000 else 20
     d2_result = compute_D2_full(
         xyz, use_guard_region=True,
-        bootstrap=True, B=50, verbose=True
+        bootstrap=True, B=B, verbose=True
     )
     dt = time.time() - t0
     print(f"Time: {dt:.1f}s")
     results['correlation_dimension'] = d2_result
 
-    # --- Forensic Validation (reduced draws for pilot) ---
+    # --- Forensic Validation ---
     print("\n" + "=" * 70)
     print("FORENSIC VALIDATION SUITE")
     print("=" * 70)
     t0 = time.time()
+
+    # Scale null draws: 30 for pilot, 10 for large (each draw is a full d_s compute)
+    n_null = 30 if N <= 5000 else 10
     fv_result = run_forensic_validation(
-        xyz, n_null_draws=30, k=15, verbose=True
+        xyz, n_null_draws=n_null, k=15, verbose=True
     )
     dt = time.time() - t0
     print(f"Time: {dt:.1f}s")
@@ -310,70 +367,85 @@ def create_summary_figure(xyz, results, output_prefix="halo_graph"):
 # ============================================================================
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Halo Graph Analysis Pipeline')
+    parser.add_argument('--n_halos', type=int, default=2000,
+                        help='Number of halos to generate (default: 2000)')
+    parser.add_argument('--keig', type=int, default=None,
+                        help='Number of eigenpairs (default: auto)')
+    parser.add_argument('--seed', type=int, default=42)
+    parser.add_argument('--output_prefix', type=str, default=None,
+                        help='Output file prefix (default: halo_graph_N)')
+    args = parser.parse_args()
+
+    N_HALOS = args.n_halos
+    if args.output_prefix is None:
+        prefix = f"halo_graph_{N_HALOS // 1000}k" if N_HALOS >= 1000 else f"halo_graph_{N_HALOS}"
+    else:
+        prefix = args.output_prefix
+    EDGELIST_PATH = f'{prefix}.edgelist'
+
+    keig = args.keig if args.keig else auto_keig(N_HALOS)
+
     print("=" * 70)
-    print("HALO GRAPH PILOT ANALYSIS")
+    print(f"HALO GRAPH ANALYSIS — N={N_HALOS:,} halos, keig={keig}")
     print("=" * 70)
 
-    EDGELIST_PATH = 'halo_graph.edgelist'
-    N_HALOS = 2000  # Pilot size — fits in < 1 GB RAM
+    total_t0 = time.time()
 
     # Step 1: Generate halo catalog
     print("\n[Step 1] Generating synthetic halo catalog...")
     t0 = time.time()
-    xyz, node_centers = generate_cosmic_web_halos(n_halos=N_HALOS, seed=42)
-    print(f"  Generated {len(xyz)} halos in {time.time()-t0:.1f}s")
+    xyz, node_centers = generate_cosmic_web_halos(n_halos=N_HALOS, seed=args.seed)
+    print(f"  Generated {len(xyz):,} halos in {time.time()-t0:.1f}s")
     print(f"  Box: [{xyz.min(axis=0).round(1)} ... {xyz.max(axis=0).round(1)}] Mpc/h")
 
     # Step 2: Build proximity graph
     print("\n[Step 2] Building halo graph (k-NN + FoF)...")
     t0 = time.time()
 
-    # Estimate mean inter-halo separation for linking length
     tree = cKDTree(xyz)
     nn_dist, _ = tree.query(xyz, k=2)
     mean_nn = nn_dist[:, 1].mean()
-    linking_length = mean_nn * 1.5  # ~1.5x mean nearest-neighbor
+    linking_length = mean_nn * 1.5
     print(f"  Mean NN distance: {mean_nn:.2f} Mpc/h")
     print(f"  FoF linking length: {linking_length:.2f} Mpc/h")
 
     G = build_halo_graph(xyz, linking_length=linking_length, k_nn=12)
-    print(f"  Graph: {G.number_of_nodes()} nodes, {G.number_of_edges()} edges")
-    print(f"  Connected components: {nx.number_connected_components(G)}")
     print(f"  Time: {time.time()-t0:.1f}s")
+
+    # Degree sanity check
+    graph_sanity_check(G, label="Halo Graph")
 
     # Step 3: Save edgelist
     print(f"\n[Step 3] Saving edgelist...")
     save_edgelist(G, EDGELIST_PATH)
-
-    # Quick stats
-    print(f"\n  --- Edgelist summary ---")
     print(f"  File: {os.path.abspath(EDGELIST_PATH)}")
-    print(f"  Nodes: {G.number_of_nodes()}")
-    print(f"  Edges: {G.number_of_edges()}")
-    print(f"  Avg degree: {2*G.number_of_edges()/G.number_of_nodes():.1f}")
 
     # Step 4: Run full analysis
     print("\n[Step 4] Running analysis pipeline...")
-    results = run_full_analysis(xyz, output_prefix="halo_graph")
+    results = run_full_analysis(xyz, output_prefix=prefix, keig=keig)
 
     # Step 5: Summary figure
     print("\n[Step 5] Creating summary figure...")
-    create_summary_figure(xyz, results, output_prefix="halo_graph")
+    create_summary_figure(xyz, results, output_prefix=prefix)
 
     # Print final summary
     sd = results['spectral_dimension']
     d2 = results['correlation_dimension']
     fv = results['forensic_validation']
+    total_dt = time.time() - total_t0
 
     print("\n" + "=" * 70)
     print("FINAL SUMMARY")
     print("=" * 70)
-    print(f"  Halo count:             {N_HALOS}")
-    print(f"  Graph edges:            {G.number_of_edges()}")
+    print(f"  Halo count:             {N_HALOS:,}")
+    print(f"  Graph edges:            {G.number_of_edges():,}")
+    print(f"  keig (auto):            {keig}")
     print(f"  Spectral dimension:     d_s = {sd.d_s:.3f} +/- {sd.d_s_std:.3f}")
     print(f"  Correlation dimension:  D_2 = {d2.D2_estimate:.3f} +/- {d2.D2_std:.3f}")
     print(f"  Forensic verdict:       {fv.verdict} ({fv.confidence})")
     print(f"  Whitening gate:         {'PASS' if fv.whitening_passed else 'FAIL'}")
     print(f"  Radial null (z):        {fv.z_score_radial:.2f} ({'PASS' if fv.radial_null_passed else 'FAIL'})")
     print(f"  Phase null (z):         {fv.z_score_phase:.2f} ({'PASS' if fv.phase_null_passed else 'FAIL'})")
+    print(f"  Total wall time:        {total_dt:.0f}s ({total_dt/60:.1f} min)")
     print("=" * 70)

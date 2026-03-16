@@ -505,9 +505,12 @@ def hutchinson_trace_estimate(
 
     # Use expm_multiply batch mode: one Krylov expansion per probe vector
     # covers ALL time points, giving ~n_times× speedup over individual calls.
-    # Batch mode requires linearly spaced t, so we oversample and interpolate.
-    n_linear = max(len(t_values) * 4, 200)  # enough linear points
+    # Batch mode requires linearly spaced t, so we use n_linear points and
+    # interpolate to our log-spaced grid.  Keep n_linear modest to avoid
+    # allocating a huge (n_linear, N) output array.
+    n_linear = max(len(t_values), 60)
     t_start, t_stop = float(t_values[0]), float(t_values[-1])
+    t_linear = np.linspace(t_start, t_stop, n_linear)
 
     for j in range(n_vectors):
         z = rng.choice([-1.0, 1.0], size=N)
@@ -519,7 +522,6 @@ def hutchinson_trace_estimate(
         traces_linear = results @ z  # shape (n_linear,)
 
         # Interpolate to our log-spaced t_values
-        t_linear = np.linspace(t_start, t_stop, n_linear)
         P_t += np.interp(t_values, t_linear, traces_linear)
 
     P_t /= n_vectors

@@ -27,7 +27,11 @@ import time
 import os
 
 # Local modules
-from diffusion_spectral_dimension import compute_spectral_dimension, plot_spectral_dimension
+from diffusion_spectral_dimension import (
+    compute_spectral_dimension,
+    compute_spectral_dimension_hutchinson,
+    plot_spectral_dimension,
+)
 from correlation_dimension import compute_D2_full, plot_D2_diagnostic
 from forensic_validation_suite import run_forensic_validation, plot_forensic_validation
 
@@ -212,22 +216,31 @@ def run_full_analysis(xyz, output_prefix="halo_graph", keig=None):
     print(f"\nAnalysis config: N={N:,}, keig={keig}")
 
     # --- Spectral Dimension ---
-    # Solver history: the pipeline originally offered a Hutchinson/SLQ trace
-    # estimator (--solver slq) as an alternative for large N.  Benchmarking
-    # showed that Lanczos eigsh is *faster* for keig <= 512 because a single
-    # eigsh call is cheaper than n_vectors * n_times expm_multiply calls
-    # (~50 * 60 = 3000 mat-vecs).  The Hutchinson path remains available in
-    # diffusion_spectral_dimension.py for graphs where keig > 512 is needed,
-    # but the default pipeline now always uses Lanczos eigsh.
+    # Solver selection:
+    #   N <= 50k  → Lanczos eigsh (fast, exact low-mode spectrum)
+    #   N > 50k   → Hutchinson trace estimator (O(1) memory per probe,
+    #               avoids the sparse LU factorization that OOMs at 250k)
+    # The Hutchinson path uses 50 Rademacher probes × 60 time points
+    # via expm_multiply (Krylov mat-vec), peak RSS stays under 1 GB.
+    use_hutchinson = N > 50000
+    solver_name = "Hutchinson" if use_hutchinson else "Lanczos eigsh"
+    print(f"\n  Solver: {solver_name}")
+
     print("\n" + "=" * 70)
     print("SPECTRAL DIMENSION ANALYSIS")
     print("=" * 70)
     t0 = time.time()
 
-    sd_result = compute_spectral_dimension(
-        xyz, k=15, n_eigs=keig, n_times=60,
-        t_min=0.01, t_max=200.0, verbose=True
-    )
+    if use_hutchinson:
+        sd_result = compute_spectral_dimension_hutchinson(
+            xyz, k=15, n_vectors=50, n_times=60,
+            t_min=0.01, t_max=200.0, verbose=True
+        )
+    else:
+        sd_result = compute_spectral_dimension(
+            xyz, k=15, n_eigs=keig, n_times=60,
+            t_min=0.01, t_max=200.0, verbose=True
+        )
 
     dt = time.time() - t0
     print(f"Time: {dt:.1f}s")
@@ -258,7 +271,8 @@ def run_full_analysis(xyz, output_prefix="halo_graph", keig=None):
     # Scale null draws: 30 for pilot, 10 for large (each draw is a full d_s compute)
     n_null = 30 if N <= 5000 else 10
     fv_result = run_forensic_validation(
-        xyz, n_null_draws=n_null, k=15, verbose=True
+        xyz, n_null_draws=n_null, k=15, verbose=True,
+        use_hutchinson=use_hutchinson,
     )
     dt = time.time() - t0
     print(f"Time: {dt:.1f}s")

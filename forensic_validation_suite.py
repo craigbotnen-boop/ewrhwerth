@@ -18,6 +18,7 @@ import warnings
 
 from diffusion_spectral_dimension import (
     compute_spectral_dimension,
+    compute_spectral_dimension_hutchinson,
     SpectralDimensionResult
 )
 
@@ -328,7 +329,8 @@ def run_forensic_validation(
     significance_threshold: float = 2.0,
     whitening_tolerance: float = 0.5,
     seed: int = 42,
-    verbose: bool = True
+    verbose: bool = True,
+    use_hutchinson: bool = False,
 ) -> ForensicValidationResult:
     """
     Run complete forensic validation suite.
@@ -357,16 +359,26 @@ def run_forensic_validation(
     """
     rng = np.random.default_rng(seed)
 
+    # Select solver: Hutchinson for large graphs, eigsh for small
+    def _compute_ds(pts):
+        if use_hutchinson:
+            return compute_spectral_dimension_hutchinson(
+                pts, k=k, n_vectors=50, n_times=60,
+                t_min=0.01, t_max=200.0, verbose=False
+            )
+        return compute_spectral_dimension(pts, k=k, verbose=False)
+
     if verbose:
+        solver = "Hutchinson" if use_hutchinson else "Lanczos eigsh"
         print("="*60)
-        print("FORENSIC VALIDATION SUITE")
+        print(f"FORENSIC VALIDATION SUITE  (solver: {solver})")
         print("="*60)
 
     # ---- Step 1: Original d_s ----
     if verbose:
         print("\n[1/4] Computing original d_s...")
 
-    result_orig = compute_spectral_dimension(xyz, k=k, verbose=False)
+    result_orig = _compute_ds(xyz)
     d_s_orig = result_orig.d_s
     d_s_orig_std = result_orig.d_s_std
 
@@ -378,7 +390,7 @@ def run_forensic_validation(
         print("\n[2/4] Whitening Gate (structure vs geometry)...")
 
     xyz_whitened, _, _ = mahalanobis_whiten(xyz)
-    result_whitened = compute_spectral_dimension(xyz_whitened, k=k, verbose=False)
+    result_whitened = _compute_ds(xyz_whitened)
     d_s_whitened = result_whitened.d_s
     d_s_whitened_std = result_whitened.d_s_std
 
@@ -397,7 +409,7 @@ def run_forensic_validation(
     d_s_radial_nulls = []
     for i in range(n_null_draws):
         xyz_null = radial_shuffle(xyz, rng=rng)
-        result_null = compute_spectral_dimension(xyz_null, k=k, verbose=False)
+        result_null = _compute_ds(xyz_null)
         if np.isfinite(result_null.d_s):
             d_s_radial_nulls.append(result_null.d_s)
 
@@ -424,7 +436,7 @@ def run_forensic_validation(
     d_s_phase_nulls = []
     for i in range(n_null_draws):
         xyz_null = density_preserving_surrogate(xyz, rng=rng)
-        result_null = compute_spectral_dimension(xyz_null, k=k, verbose=False)
+        result_null = _compute_ds(xyz_null)
         if np.isfinite(result_null.d_s):
             d_s_phase_nulls.append(result_null.d_s)
 

@@ -194,17 +194,25 @@ def _compute_eigenvalues(
         # Return smallest n_eigs (including near-zero)
         return eigenvalues[:n_eigs]
 
-    # For larger graphs, use sparse eigsh
+    # For larger graphs, use sparse eigsh with shift-invert mode.
+    # sigma=0 + which='LM' finds eigenvalues nearest zero via (L - 0*I)^{-1},
+    # which converges much faster than which='SM' for large sparse Laplacians.
+    # The 'SM' mode requires many ARPACK iterations and can stall at N > 100k.
     try:
-        # which='SM' finds smallest magnitude eigenvalues
-        # For Laplacian, smallest are near 0
-        eigenvalues, _ = eigsh(L, k=n_eigs, which='SM')
+        eigenvalues, _ = eigsh(L, k=n_eigs, sigma=0.0, which='LM')
         eigenvalues = np.sort(np.abs(eigenvalues))
     except Exception as e:
-        warnings.warn(f"Sparse eigendecomposition failed: {e}. Using dense.")
-        L_dense = L.toarray()
-        eigenvalues = np.linalg.eigvalsh(L_dense)
-        eigenvalues = np.sort(eigenvalues)[:n_eigs]
+        # Shift-invert can fail if L is exactly singular (zero eigenvalue).
+        # Fall back to which='SM' with relaxed tolerance.
+        warnings.warn(f"Shift-invert eigsh failed ({e}); falling back to which='SM'")
+        try:
+            eigenvalues, _ = eigsh(L, k=n_eigs, which='SM', tol=1e-4)
+            eigenvalues = np.sort(np.abs(eigenvalues))
+        except Exception as e2:
+            warnings.warn(f"Sparse eigendecomposition failed: {e2}. Using dense.")
+            L_dense = L.toarray()
+            eigenvalues = np.linalg.eigvalsh(L_dense)
+            eigenvalues = np.sort(eigenvalues)[:n_eigs]
 
     return eigenvalues
 

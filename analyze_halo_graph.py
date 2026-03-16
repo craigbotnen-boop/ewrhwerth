@@ -179,9 +179,14 @@ def build_halo_graph(xyz, linking_length=None, k_nn=12):
 
 
 def save_edgelist(G, filepath):
-    """Save graph as whitespace-delimited edgelist."""
-    nx.write_edgelist(G, filepath, data=False)
-    print(f"Saved edgelist: {filepath} ({G.number_of_nodes()} nodes, {G.number_of_edges()} edges)")
+    """Save graph as whitespace-delimited edgelist with metadata header."""
+    n = G.number_of_nodes()
+    m = G.number_of_edges()
+    with open(filepath, 'w') as f:
+        f.write(f"# n={n} m={m}\n")
+        for u, v in G.edges():
+            f.write(f"{u} {v}\n")
+    print(f"Saved edgelist: {filepath} ({n} nodes, {m} edges)")
 
 
 def load_edgelist(filepath):
@@ -207,8 +212,13 @@ def run_full_analysis(xyz, output_prefix="halo_graph", keig=None):
     print(f"\nAnalysis config: N={N:,}, keig={keig}")
 
     # --- Spectral Dimension ---
-    # Always use Lanczos eigsh — it's faster than Hutchinson for keig <= 512
-    # because computing keig eigenvalues once is cheaper than 50*60 expm_multiply calls
+    # Solver history: the pipeline originally offered a Hutchinson/SLQ trace
+    # estimator (--solver slq) as an alternative for large N.  Benchmarking
+    # showed that Lanczos eigsh is *faster* for keig <= 512 because a single
+    # eigsh call is cheaper than n_vectors * n_times expm_multiply calls
+    # (~50 * 60 = 3000 mat-vecs).  The Hutchinson path remains available in
+    # diffusion_spectral_dimension.py for graphs where keig > 512 is needed,
+    # but the default pipeline now always uses Lanczos eigsh.
     print("\n" + "=" * 70)
     print("SPECTRAL DIMENSION ANALYSIS")
     print("=" * 70)

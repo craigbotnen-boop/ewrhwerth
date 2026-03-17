@@ -503,26 +503,48 @@ def hutchinson_trace_estimate(
     P_t = np.zeros(len(t_values))
     neg_L = -L  # single copy reused for all probes
 
-    # Use expm_multiply batch mode: one Krylov expansion per probe vector
-    # covers ALL time points, giving ~n_times× speedup over individual calls.
-    # Batch mode requires linearly spaced t, so we use n_linear points and
-    # interpolate to our log-spaced grid.  Keep n_linear modest to avoid
-    # allocating a huge (n_linear, N) output array.
-    n_linear = max(len(t_values), 60)
-    t_start, t_stop = float(t_values[0]), float(t_values[-1])
-    t_linear = np.linspace(t_start, t_stop, n_linear)
+    # Split log-spaced t_values into per-decade batches for expm_multiply.
+    # Each batch uses linearly spaced points within one decade, keeping:
+    #   - output arrays small: (pts_per_decade, N) ~ 38 MB at N=250k
+    #   - Krylov workspace small: t_stop/t_start <= 10 per batch
+    # Then interpolate all batch results onto the original log-spaced grid.
+    t_lo, t_hi = float(t_values[0]), float(t_values[-1])
+    decade_edges = [t_lo]
+    t = t_lo
+    while t < t_hi:
+        t = min(t * 10.0, t_hi)
+        decade_edges.append(t)
+    pts_per_decade = 20
 
     for j in range(n_vectors):
         z = rng.choice([-1.0, 1.0], size=N)
 
-        # Shape: (n_linear, N) — each row is exp(-t_k * L) @ z
-        results = expm_multiply(neg_L, z, start=t_start, stop=t_stop,
-                                num=n_linear, endpoint=True)
-        # Dot product z @ exp(-t_k L) z for each linear t
-        traces_linear = results @ z  # shape (n_linear,)
+        # Collect (t, trace) pairs from all decade batches
+        all_t = []
+        all_traces = []
+
+        for di in range(len(decade_edges) - 1):
+            d_start = decade_edges[di]
+            d_stop = decade_edges[di + 1]
+
+            results = expm_multiply(neg_L, z, start=d_start, stop=d_stop,
+                                    num=pts_per_decade, endpoint=True)
+            traces_batch = results @ z  # (pts_per_decade,)
+            t_batch = np.linspace(d_start, d_stop, pts_per_decade)
+
+            # Avoid duplicate boundary points between decades
+            if di > 0:
+                t_batch = t_batch[1:]
+                traces_batch = traces_batch[1:]
+
+            all_t.append(t_batch)
+            all_traces.append(traces_batch)
+
+        t_combined = np.concatenate(all_t)
+        traces_combined = np.concatenate(all_traces)
 
         # Interpolate to our log-spaced t_values
-        P_t += np.interp(t_values, t_linear, traces_linear)
+        P_t += np.interp(t_values, t_combined, traces_combined)
 
     P_t /= n_vectors
     return P_t

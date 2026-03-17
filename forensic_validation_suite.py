@@ -363,8 +363,8 @@ def run_forensic_validation(
     def _compute_ds(pts):
         if use_hutchinson:
             return compute_spectral_dimension_hutchinson(
-                pts, k=k, n_vectors=50, n_times=60,
-                t_min=0.01, t_max=200.0, verbose=False
+                pts, k=k, n_vectors=20, n_times=60,
+                t_min=0.01, t_max=100.0, verbose=False
             )
         return compute_spectral_dimension(pts, k=k, verbose=False)
 

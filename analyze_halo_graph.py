@@ -204,7 +204,7 @@ def load_edgelist(filepath):
 # 2. Analysis pipeline
 # ============================================================================
 
-def run_full_analysis(xyz, output_prefix="halo_graph", keig=None):
+def run_full_analysis(xyz, output_prefix="halo_graph", keig=None, n_null=None):
     """Run spectral dimension, correlation dimension, and forensic validation."""
 
     N = len(xyz)
@@ -269,7 +269,8 @@ def run_full_analysis(xyz, output_prefix="halo_graph", keig=None):
     t0 = time.time()
 
     # Scale null draws: 30 for pilot, 10 for large (each draw is a full d_s compute)
-    n_null = 30 if N <= 5000 else 10
+    if n_null is None:
+        n_null = 30 if N <= 5000 else 10
     fv_result = run_forensic_validation(
         xyz, n_null_draws=n_null, k=15, verbose=True,
         use_hutchinson=use_hutchinson,

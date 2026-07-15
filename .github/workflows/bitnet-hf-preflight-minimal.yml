@@ -1,0 +1,34 @@
+name: BitNet HF Minimal Preflight
+
+on:
+  pull_request:
+    branches: [three-paper-suite]
+    paths: ['.github/workflows/bitnet-hf-preflight-minimal.yml']
+
+jobs:
+  preflight-minimal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Minimal SlimPajama traceback
+        run: |
+          python3 -m pip install -q 'datasets==4.1.1'
+          python3 - <<'PY'
+          import traceback
+          try:
+              from datasets import load_dataset
+              from huggingface_hub import HfApi
+              dataset_id='cerebras/SlimPajama-627B'
+              revision=HfApi().dataset_info(dataset_id).sha
+              print('REVISION', revision, flush=True)
+              for split in ('train','validation'):
+                  print('OPEN_SPLIT', split, flush=True)
+                  ds=load_dataset(dataset_id, split=split, streaming=True, revision=revision)
+                  row=next(iter(ds))
+                  print('ROW_OK', split, sorted(row.keys()), len(row.get('text','')), flush=True)
+              print('HF_PREFLIGHT_PASS', flush=True)
+          except Exception as exc:
+              print('HF_PREFLIGHT_FAIL', type(exc).__name__, repr(exc), flush=True)
+              traceback.print_exc()
+              raise
+          PY

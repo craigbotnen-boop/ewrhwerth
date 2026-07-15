@@ -1,0 +1,154 @@
+name: BitNet EH1 Corpus Freeze
+
+on:
+  pull_request:
+    branches: [three-paper-suite]
+    paths: ['.github/workflows/bitnet-eh1-corpus-freeze.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  freeze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install pinned freeze dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install 'datasets==4.1.1' 'tokenizers==0.22.1' 'numpy==2.3.3'
+      - name: Freeze SlimPajama source, tokenizer, token streams, and schedules
+        run: |
+          python - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          import numpy as np
+          import datasets, tokenizers, huggingface_hub
+          from datasets import load_dataset
+          from huggingface_hub import HfApi
+          from tokenizers import Tokenizer
+          from tokenizers.models import BPE
+          from tokenizers.pre_tokenizers import ByteLevel
+          from tokenizers.decoders import ByteLevel as ByteLevelDecoder
+          from tokenizers.trainers import BpeTrainer
+
+          ROOT = Path('bitnet_eh1/frozen_corpus')
+          SRC = ROOT/'source_jsonl'; TOK = ROOT/'tokenized'; SCH = ROOT/'schedules'
+          for p in (SRC, TOK, SCH): p.mkdir(parents=True, exist_ok=True)
+          DATASET_ID='cerebras/SlimPajama-627B'
+          SPECIAL=['<pad>','<bos>','<eos>','<unk>']; SID={t:i for i,t in enumerate(SPECIAL)}
+          SEQ=2048; BATCH_TOK=32768; UPDATES=1526; SEEDS=[17,29,41]; VAL_SEQ=2048
+
+          def sha(path):
+              h=hashlib.sha256()
+              with Path(path).open('rb') as f:
+                  for c in iter(lambda:f.read(1<<20), b''): h.update(c)
+              return h.hexdigest()
+
+          revision=HfApi().dataset_info(DATASET_ID).sha
+          assert isinstance(revision,str) and len(revision)==40
+
+          def materialize(split, target_mib, out):
+              ds=load_dataset(DATASET_ID, split=split, streaming=True, revision=revision)
+              target=target_mib*1024*1024; n=seen=nbytes=0; first=last=None
+              with out.open('w',encoding='utf-8',newline='\n') as f:
+                  for idx,row in enumerate(ds):
+                      seen=idx+1; text=row.get('text')
+                      if not isinstance(text,str) or len(text)==0: continue
+                      if first is None: first=idx
+                      last=idx
+                      f.write(json.dumps({'text':text,'meta':row.get('meta')},ensure_ascii=False,separators=(',',':'),sort_keys=True)+'\n')
+                      n+=1; nbytes+=len(text.encode('utf-8'))
+                      if nbytes>=target: break
+              assert nbytes>=target
+              return {'split':split,'target_text_bytes':target,'realized_text_bytes':nbytes,'selected_document_count':n,'source_rows_seen':seen,'first_selected_source_row':first,'last_selected_source_row':last,'output_path':str(out),'output_sha256':sha(out),'output_size_bytes':out.stat().st_size,'selection_rule':'native order; nonempty string text only; no normalization/strip/truncate/shuffle/resample; stop when cumulative UTF-8 text bytes first reach/exceed target'}
+
+          train_jsonl=SRC/'train.jsonl'; val_jsonl=SRC/'validation.jsonl'
+          source_manifest={'campaign':'BITNET_EH1_ARCHITECTURE_SMOKE_SLIMPAJAMA_SOURCE_FREEZE_V1','dataset_id':DATASET_ID,'dataset_revision':revision,'datasets_version':datasets.__version__,'huggingface_hub_version':huggingface_hub.__version__,'train':materialize('train',256,train_jsonl),'validation':materialize('validation',32,val_jsonl),'claim_ceiling':'Deterministic ordered SlimPajama subsample for Architecture Smoke; not Microsoft 2B4T production corpus.'}
+          (SRC/'SOURCE_JSONL_FREEZE_MANIFEST.json').write_text(json.dumps(source_manifest,indent=2,sort_keys=True))
+
+          def texts(path):
+              with path.open('r',encoding='utf-8') as f:
+                  for line in f:
+                      if line.strip():
+                          x=json.loads(line)['text']
+                          assert isinstance(x,str)
+                          yield x
+
+          tokenizer=Tokenizer(BPE(unk_token='<unk>'))
+          tokenizer.pre_tokenizer=ByteLevel(add_prefix_space=False)
+          tokenizer.decoder=ByteLevelDecoder()
+          trainer=BpeTrainer(vocab_size=4096,min_frequency=2,special_tokens=SPECIAL,initial_alphabet=ByteLevel.alphabet(),show_progress=True)
+          tokenizer.train_from_iterator(texts(train_jsonl),trainer=trainer)
+          vocab=tokenizer.get_vocab()
+          assert tokenizer.get_vocab_size()==4096
+          assert all(vocab[t]==i for t,i in SID.items())
+          tokenizer_path=TOK/'tokenizer.json'; tokenizer.save(str(tokenizer_path))
+
+          def encode(src,out):
+              nt=nd=0
+              with out.open('wb') as w:
+                  for text in texts(src):
+                      ids=[SID['<bos>'],*tokenizer.encode(text).ids,SID['<eos>']]
+                      assert max(ids)<65536
+                      np.asarray(ids,dtype=np.uint16).tofile(w)
+                      nt+=len(ids); nd+=1
+              return nt,nd
+
+          train_bin=TOK/'train.tokens.uint16'; val_bin=TOK/'validation.tokens.uint16'
+          train_tokens,train_docs=encode(train_jsonl,train_bin); val_tokens,val_docs=encode(val_jsonl,val_bin)
+          corpus_manifest={'campaign':'BITNET_EH1_ARCHITECTURE_SMOKE_CORPUS_FREEZE_V1','text_field':'text','tokenizers_version':tokenizers.__version__,'tokenizer_type':'ByteLevel BPE','vocab_size':4096,'special_token_ids':SID,'document_encoding':'[BOS] + encode(text) + [EOS]','train':{'source_path':str(train_jsonl),'source_sha256':sha(train_jsonl),'document_count':train_docs,'token_bin':str(train_bin),'token_bin_sha256':sha(train_bin),'token_count':train_tokens},'validation':{'source_path':str(val_jsonl),'source_sha256':sha(val_jsonl),'document_count':val_docs,'token_bin':str(val_bin),'token_bin_sha256':sha(val_bin),'token_count':val_tokens},'tokenizer':{'path':str(tokenizer_path),'sha256':sha(tokenizer_path),'trained_on':'train split only'},'claim_ceiling':'4096-vocab Architecture Smoke tokenizer; not Microsoft 2B4T Llama-3 tokenizer.'}
+          (TOK/'CORPUS_FREEZE_MANIFEST.json').write_text(json.dumps(corpus_manifest,indent=2,sort_keys=True))
+
+          spb=BATCH_TOK//SEQ; window=SEQ+1; total_seq=UPDATES*spb
+          train_windows=train_tokens//window; val_windows=val_tokens//window
+          assert BATCH_TOK%SEQ==0 and train_windows>=total_seq and val_windows>=VAL_SEQ
+          schedules=[]
+          for seed in SEEDS:
+              rng=np.random.default_rng(seed)
+              ids=rng.permutation(train_windows)[:total_seq]
+              assert np.unique(ids).size==total_seq
+              offsets=(ids.astype(np.int64)*window).reshape(UPDATES,spb)
+              p=SCH/f'train_schedule_seed_{seed}.npy'; np.save(p,offsets,allow_pickle=False)
+              schedules.append({'seed':seed,'path':str(p),'sha256':sha(p),'shape':list(offsets.shape),'sequences_per_update':spb,'input_tokens_per_update':BATCH_TOK,'source_window_tokens':window,'source_window_reuse_occurred':False,'unique_source_windows':int(np.unique(ids).size)})
+          vo=np.arange(VAL_SEQ,dtype=np.int64)*window
+          vp=SCH/'validation_schedule.npy'; np.save(vp,vo,allow_pickle=False)
+          sched_manifest={'campaign':'BITNET_EH1_ARCHITECTURE_SMOKE_BATCH_SCHEDULE_V2','sequence_length':SEQ,'source_window_tokens':window,'global_batch_tokens':BATCH_TOK,'optimizer_updates':UPDATES,'realized_training_tokens':UPDATES*BATCH_TOK,'train_token_count':train_tokens,'train_nonoverlapping_source_window_count':train_windows,'allow_train_window_reuse':False,'train_schedules':schedules,'validation':{'token_count':val_tokens,'nonoverlapping_source_window_count':val_windows,'selected_sequence_count':VAL_SEQ,'selection_rule':'first N non-overlapping source windows in frozen validation token order','path':str(vp),'sha256':sha(vp),'shape':list(vo.shape)},'pairing_rule':'Within seed all four arms consume identical train offsets; all arms/interventions use identical validation offsets.'}
+          (SCH/'BATCH_SCHEDULE_MANIFEST.json').write_text(json.dumps(sched_manifest,indent=2,sort_keys=True))
+
+          closeout={'campaign':'BITNET_EH1_ARCHITECTURE_SMOKE_FREEZE_CLOSEOUT_V1','source_dataset_revision':revision,'source_train_jsonl_sha256':source_manifest['train']['output_sha256'],'source_validation_jsonl_sha256':source_manifest['validation']['output_sha256'],'tokenizer_sha256':corpus_manifest['tokenizer']['sha256'],'train_token_bin_sha256':corpus_manifest['train']['token_bin_sha256'],'validation_token_bin_sha256':corpus_manifest['validation']['token_bin_sha256'],'train_token_count':train_tokens,'validation_token_count':val_tokens,'realized_training_tokens':UPDATES*BATCH_TOK,'paired_seeds':SEEDS,'validation_sequence_count':VAL_SEQ,'train_window_reuse':False,'verdict':'CORPUS_TOKENIZER_AND_SCHEDULE_FREEZE_PASS','claim_ceiling':'Architecture Smoke data freeze only; SlimPajama subsample is not the Microsoft 2B4T production corpus.'}
+          (ROOT/'FREEZE_CLOSEOUT_RECEIPT.json').write_text(json.dumps(closeout,indent=2,sort_keys=True))
+          print(json.dumps(closeout,indent=2,sort_keys=True))
+          PY
+      - name: Build compact receipt bundle
+        run: |
+          mkdir -p bitnet_eh1/receipt_bundle
+          cp bitnet_eh1/frozen_corpus/source_jsonl/SOURCE_JSONL_FREEZE_MANIFEST.json bitnet_eh1/receipt_bundle/
+          cp bitnet_eh1/frozen_corpus/tokenized/CORPUS_FREEZE_MANIFEST.json bitnet_eh1/receipt_bundle/
+          cp bitnet_eh1/frozen_corpus/schedules/BATCH_SCHEDULE_MANIFEST.json bitnet_eh1/receipt_bundle/
+          cp bitnet_eh1/frozen_corpus/FREEZE_CLOSEOUT_RECEIPT.json bitnet_eh1/receipt_bundle/
+          cp bitnet_eh1/frozen_corpus/tokenized/tokenizer.json bitnet_eh1/receipt_bundle/
+          cp bitnet_eh1/frozen_corpus/schedules/*.npy bitnet_eh1/receipt_bundle/
+          python --version > bitnet_eh1/receipt_bundle/python_version.txt
+          python -m pip freeze | sort > bitnet_eh1/receipt_bundle/pip_freeze.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bitnet-eh1-architecture-smoke-freeze-receipts
+          path: bitnet_eh1/receipt_bundle
+          retention-days: 30
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bitnet-eh1-architecture-smoke-frozen-corpus
+          path: |
+            bitnet_eh1/frozen_corpus/source_jsonl/*.jsonl
+            bitnet_eh1/frozen_corpus/tokenized/*.uint16
+          retention-days: 30
+          compression-level: 6
+          if-no-files-found: error

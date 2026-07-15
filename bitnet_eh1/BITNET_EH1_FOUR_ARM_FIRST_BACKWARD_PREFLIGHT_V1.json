@@ -1,0 +1,45 @@
+{
+  "campaign": "BITNET_EH1_ARCHITECTURE_SMOKE_V1",
+  "preflight_id": "BITNET_EH1_FOUR_ARM_FIRST_BACKWARD_PREFLIGHT_V1",
+  "date_utc": "2026-07-15",
+  "scope": "PRE_TRAINING_NUMERICAL_STABILITY_ONLY",
+  "core_commit": "71c56f0a3f575317a50a02ef3356bb739c65d993",
+  "transformers_revision": "096f25ae1f501a084d8ff2dcaf25fbc2bd60eba4",
+  "execution_host": "Hugging Face Jobs",
+  "job_id": "6a580f3585d9643ce16d5950",
+  "hardware": "NVIDIA A100-SXM4-80GB",
+  "precision": "bf16 CUDA autocast with FP32 master parameters",
+  "gradient_checkpointing": true,
+  "sequence_length": 2048,
+  "input_rule": "deterministic arange(2048) modulo 4096; target shifted by one modulo 4096",
+  "initialization": {
+    "rule": "FOUNDATION_SUBLN_INIT_V1",
+    "gamma": 1.782709687623856,
+    "gamma_formula": "sqrt(log(2 * 12))"
+  },
+  "results": [
+    {"seed": 17, "arm": "B_full", "loss": 8.529106140136719, "grad_norm_preclip": 2.5690503120422363, "max_abs_finite_grad": 0.0133056640625, "bad_tensor_count": 0, "total_nonfinite": 0, "grad_norm_finite": true, "cuda_max_allocated_bytes": 1531370496},
+    {"seed": 17, "arm": "B_narrow", "loss": 8.530961990356445, "grad_norm_preclip": 2.5859615802764893, "max_abs_finite_grad": 0.01385498046875, "bad_tensor_count": 0, "total_nonfinite": 0, "grad_norm_finite": true, "cuda_max_allocated_bytes": 1518657024},
+    {"seed": 17, "arm": "B_ambient", "loss": 8.530998229980469, "grad_norm_preclip": 2.5960419178009033, "max_abs_finite_grad": 0.01373291015625, "bad_tensor_count": 0, "total_nonfinite": 0, "grad_norm_finite": true, "cuda_max_allocated_bytes": 1518657024},
+    {"seed": 17, "arm": "E_EH1", "loss": 8.531604766845703, "grad_norm_preclip": 2.5773367881774902, "max_abs_finite_grad": 0.01361083984375, "bad_tensor_count": 0, "total_nonfinite": 0, "grad_norm_finite": true, "cuda_max_allocated_bytes": 1522955776},
+    {"seed": 29, "arm": "B_full", "loss": 8.512633323669434, "grad_norm_preclip": 2.7931950092315674, "max_abs_finite_grad": 0.015869140625, "bad_tensor_count": 0, "total_nonfinite": 0, "grad_norm_finite": true, "cuda_max_allocated_bytes": 1565974016},
+    {"seed": 29, "arm": "B_narrow", "loss": 8.509380340576172, "grad_norm_preclip": 2.8051953315734863, "max_abs_finite_grad": 0.0164794921875, "bad_tensor_count": 0, "total_nonfinite": 0, "grad_norm_finite": true, "cuda_max_allocated_bytes": 1519181312},
+    {"seed": 29, "arm": "B_ambient", "loss": 8.50888729095459, "grad_norm_preclip": 2.827805757522583, "max_abs_finite_grad": 0.0172119140625, "bad_tensor_count": 0, "total_nonfinite": 0, "grad_norm_finite": true, "cuda_max_allocated_bytes": 1518394880},
+    {"seed": 29, "arm": "E_EH1", "loss": 8.508907318115234, "grad_norm_preclip": 2.802669048309326, "max_abs_finite_grad": 0.016845703125, "bad_tensor_count": 0, "total_nonfinite": 0, "grad_norm_finite": true, "cuda_max_allocated_bytes": 1524069888},
+    {"seed": 41, "arm": "B_full", "loss": 8.5406494140625, "grad_norm_preclip": 2.7051331996917725, "max_abs_finite_grad": 0.0167236328125, "bad_tensor_count": 0, "total_nonfinite": 0, "grad_norm_finite": true, "cuda_max_allocated_bytes": 1568398848},
+    {"seed": 41, "arm": "B_narrow", "loss": 8.542811393737793, "grad_norm_preclip": 2.6571156978607178, "max_abs_finite_grad": 0.01409912109375, "bad_tensor_count": 0, "total_nonfinite": 0, "grad_norm_finite": true, "cuda_max_allocated_bytes": 1518657024},
+    {"seed": 41, "arm": "B_ambient", "loss": 8.543816566467285, "grad_norm_preclip": 2.664058208465576, "max_abs_finite_grad": 0.0140380859375, "bad_tensor_count": 0, "total_nonfinite": 0, "grad_norm_finite": true, "cuda_max_allocated_bytes": 1519181312},
+    {"seed": 41, "arm": "E_EH1", "loss": 8.542783737182617, "grad_norm_preclip": 2.650085687637329, "max_abs_finite_grad": 0.01409912109375, "bad_tensor_count": 0, "total_nonfinite": 0, "grad_norm_finite": true, "cuda_max_allocated_bytes": 1523545600}
+  ],
+  "aggregate": {
+    "arm_seed_cells": 12,
+    "cells_with_nonfinite_gradient_values": 0,
+    "total_nonfinite_gradient_values": 0,
+    "cells_with_nonfinite_grad_norm": 0
+  },
+  "verdict": "FOUR_ARM_THREE_SEED_FIRST_BACKWARD_PASS",
+  "interpretation": "FOUNDATION_SUBLN_INIT_V1 removes the pre-training first-backward numerical blocker for all four matched arms at every frozen paired seed under the exact pinned online BitLinear QAT path.",
+  "forbidden_interpretation": "This preflight is not a native-training result and provides no evidence yet for WIDTH_PENALTY, HEAD_USE, TOKEN_CONDITIONING, HEAD_INCREMENT, or RECOVERY.",
+  "claim_ceiling": "ARCHITECTURE_SMOKE / PRE_TRAINING_NUMERICAL_STABILITY",
+  "historical_qabs_state_unchanged": "BLOCKED_BITNET_2B4T_AGGREGATE_QABS"
+}

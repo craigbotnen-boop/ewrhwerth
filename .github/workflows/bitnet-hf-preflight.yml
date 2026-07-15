@@ -19,22 +19,47 @@ jobs:
           python-version: '3.12'
       - name: Install minimal dependencies
         run: python -m pip install -q 'datasets==4.1.1'
-      - name: Resolve and read SlimPajama rows
+      - name: Read pinned SlimPajama mirror rows and assert sampled source-order compatibility
         run: |
           python - <<'PY'
-          import traceback
+          import hashlib, json, traceback
           from datasets import load_dataset
-          from huggingface_hub import HfApi
 
-          dataset_id = 'cerebras/SlimPajama-627B'
+          dataset_id = 'gmongaras/SlimPajama-627B_Reupload'
+          revision = 'c34c22dbb10ae6b264a2f357a909d1a537141b36'
+          expected = {
+              'train': ('RedPajamaCommonCrawl', "J.J. Abrams Returns To Write And Direct 'Star Wars: Episode IX'"),
+              'validation': ('RedPajamaGithub', 'namespace base {'),
+          }
           try:
-              revision = HfApi().dataset_info(dataset_id).sha
+              print('DATASET_ID', dataset_id, flush=True)
               print('REVISION', revision, flush=True)
               for split in ('train', 'validation'):
                   print('OPEN_SPLIT', split, flush=True)
                   ds = load_dataset(dataset_id, split=split, streaming=True, revision=revision)
-                  row = next(iter(ds))
-                  print('ROW_OK', split, sorted(row.keys()), type(row.get('text')).__name__, len(row.get('text', '')), flush=True)
+                  h = hashlib.sha256()
+                  rows = 0
+                  first = None
+                  for idx, row in enumerate(ds):
+                      canon = json.dumps(
+                          {'text': row.get('text'), 'meta': row.get('meta')},
+                          ensure_ascii=False,
+                          separators=(',', ':'),
+                          sort_keys=True,
+                      )
+                      h.update(canon.encode('utf-8')); h.update(b'\n')
+                      if idx == 0:
+                          first = row
+                      rows += 1
+                      if idx == 31:
+                          break
+                  assert rows == 32
+                  meta = (first.get('meta') or {}).get('redpajama_set_name')
+                  text = first.get('text', '')
+                  assert meta == expected[split][0]
+                  assert text.startswith(expected[split][1])
+                  print('FIRST32_CANON_SHA256', split, h.hexdigest(), flush=True)
+                  print('ROW_OK', split, sorted(first.keys()), meta, len(text), flush=True)
               print('HF_PREFLIGHT_PASS', flush=True)
           except Exception as exc:
               print('HF_PREFLIGHT_FAIL', type(exc).__name__, repr(exc), flush=True)

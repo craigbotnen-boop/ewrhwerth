@@ -3,28 +3,35 @@
 BITNET EH-1 ARCHITECTURE SMOKE CORE
 ===================================
 
-Reference model-construction layer for a matched four-arm native-training test:
+Matched four-arm native-training scaffold:
 
-    B_full     : full width D
-    B_narrow   : narrow width N, standard RMS divisor N
-    B_ambient  : narrow width N, fixed full-reference divisor D, E=0
-    E_EH1      : narrow width N, full-reference divisor D, learned scalar E_hat(x)
+    B_full     : full FFN width D, ordinary width-D FFN RMS denominator
+    B_narrow   : narrow FFN width N, ordinary width-N FFN RMS denominator
+    B_ambient  : narrow FFN width N, fixed reference denominator D, E=0
+    E_EH1      : narrow FFN width N, fixed reference denominator D,
+                 learned positive scalar omitted-energy register E_hat(x)
 
 Pinned Transformers source convention:
     096f25ae1f501a084d8ff2dcaf25fbc2bd60eba4
 
-The pinned BitNet MLP computes:
-    h = relu2(gate_proj(x)) * up_proj(x)
-    h = ffn_sub_norm(h)
-    y = down_proj(h)
+Pinned Microsoft BF16 checkpoint reference:
+    microsoft/bitnet-b1.58-2B-4T-bf16
+    commit 276681394656abdadb8e80e5b2c3db5e5d7fcaff
+    hidden_size=2560
+    initializer_range=0.02
 
-This module replaces only the FFN SubLN behavior for B_ambient / E_EH1 and
-converts ordinary Linear projections to AutoBitLinear online QAT after matched
-initialization has been established.
+Smoke-specific initialization amendment:
+    sigma_smoke = 0.02 * sqrt(2560 / hidden_size)
+
+The rule preserves sigma*sqrt(hidden_size), i.e. the hidden-width-normalized
+master-weight scale of the pinned 2B configuration when the Architecture Smoke
+shrinks hidden width to 1024. It is a smoke scaling control, not a claim that
+Microsoft used this cross-width rule in production training.
 """
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Dict, Iterable, Literal
 
@@ -36,6 +43,9 @@ from transformers import BitNetConfig, BitNetForCausalLM
 from transformers.activations import ACT2FN
 from transformers.integrations.bitnet import AutoBitLinear
 
+
+REFERENCE_HIDDEN_SIZE = 2560
+REFERENCE_INITIALIZER_RANGE = 0.02
 
 EnergyMode = Literal[
     "normal",
@@ -64,8 +74,30 @@ class SmokeShape:
         return self.d_ff_full - self.d_ff_narrow
 
 
+def smoke_initializer_range(shape: SmokeShape) -> float:
+    if shape.hidden_size <= 0:
+        raise ValueError("hidden_size must be positive.")
+    return REFERENCE_INITIALIZER_RANGE * math.sqrt(
+        REFERENCE_HIDDEN_SIZE / shape.hidden_size
+    )
+
+
+def initialization_receipt(shape: SmokeShape) -> dict[str, object]:
+    sigma = smoke_initializer_range(shape)
+    return {
+        "rule": "WIDTH_SCALED_MASTER_INIT_V1",
+        "formula": "reference_initializer_range * sqrt(reference_hidden_size / smoke_hidden_size)",
+        "reference_hidden_size": REFERENCE_HIDDEN_SIZE,
+        "reference_initializer_range": REFERENCE_INITIALIZER_RANGE,
+        "smoke_hidden_size": shape.hidden_size,
+        "smoke_initializer_range": sigma,
+        "invariant": "initializer_range * sqrt(hidden_size)",
+        "claim_ceiling": "Architecture Smoke scaling control; not a Microsoft production-training initialization claim.",
+    }
+
+
 class ReferenceWidthFFNSubLN(nn.Module):
-    """Learned affine FFN RMSNorm with an explicit denominator reference width."""
+    """Affine FFN RMSNorm with explicit denominator reference width."""
 
     def __init__(
         self,
@@ -99,37 +131,39 @@ class ReferenceWidthFFNSubLN(nn.Module):
         transport_energy = h.square().sum(dim=-1, keepdim=True)
 
         if omitted_energy is None:
-            e = torch.zeros_like(transport_energy)
+            energy = torch.zeros_like(transport_energy)
         else:
-            if omitted_energy.shape != (*hidden_states.shape[:-1], 1):
+            expected_shape = (*hidden_states.shape[:-1], 1)
+            if omitted_energy.shape != expected_shape:
                 raise ValueError(
-                    "omitted_energy must have shape hidden_states.shape[:-1] + (1,)."
+                    f"omitted_energy must have shape {expected_shape}, "
+                    f"got {tuple(omitted_energy.shape)}."
                 )
-            e = omitted_energy.float()
-            if bool((e < 0).any()):
+            energy = omitted_energy.float()
+            if bool((energy < 0).any()):
                 raise ValueError("omitted_energy must be non-negative.")
 
-        mean_square = (transport_energy + e) / self.reference_width
+        mean_square = (transport_energy + energy) / self.reference_width
         h = h * torch.rsqrt(mean_square + self.variance_epsilon)
         return self.weight * h.to(input_dtype)
 
 
 def _valid_mask(
-    x: torch.Tensor,
+    energy: torch.Tensor,
     attention_mask: torch.Tensor | None,
 ) -> torch.Tensor:
     if attention_mask is None:
         return torch.ones(
-            x.shape[:2],
+            energy.shape[:2],
             dtype=torch.bool,
-            device=x.device,
+            device=energy.device,
         )
-    if attention_mask.shape != x.shape[:2]:
+    if attention_mask.shape != energy.shape[:2]:
         raise ValueError(
-            f"attention_mask {tuple(attention_mask.shape)} "
-            f"does not match token shape {tuple(x.shape[:2])}."
+            f"attention_mask {tuple(attention_mask.shape)} does not match "
+            f"token shape {tuple(energy.shape[:2])}."
         )
-    return attention_mask.to(device=x.device, dtype=torch.bool)
+    return attention_mask.to(device=energy.device, dtype=torch.bool)
 
 
 def intervene_on_energy(
@@ -139,83 +173,77 @@ def intervene_on_energy(
     *,
     seed: int,
 ) -> torch.Tensor:
-    """Apply frozen evaluation-only interventions to [B,S,1] energy scalars."""
+    """Local evaluation helper for [B,S,1] scalars.
+
+    The scientific runner uses full-validation externally clamped banks for the
+    frozen causal interventions. This helper remains useful for local smoke
+    tests and never runs in normal training mode.
+    """
     if mode == "normal":
         return energy
 
     valid = _valid_mask(energy, attention_mask)
     out = energy.clone()
-    values_2d = out[..., 0]
+    values = out[..., 0]
 
     if mode == "zero":
-        values_2d[valid] = 0
+        values[valid] = 0
         return out
 
-    valid_values = values_2d[valid]
+    valid_values = values[valid]
     if valid_values.numel() == 0:
         raise ValueError("No valid tokens available for energy intervention.")
 
     if mode == "mean":
-        values_2d[valid] = valid_values.float().mean().to(valid_values.dtype)
+        values[valid] = valid_values.float().mean().to(valid_values.dtype)
         return out
 
     generator = torch.Generator(device=energy.device)
     generator.manual_seed(int(seed))
 
     if mode == "shuffle_cross_sequence":
-        perm = torch.randperm(
+        permutation = torch.randperm(
             valid_values.numel(),
             generator=generator,
             device=energy.device,
         )
-        values_2d[valid] = valid_values[perm]
+        values[valid] = valid_values[permutation]
         return out
 
     if mode == "shuffle_within_sequence":
-        for batch_idx in range(values_2d.shape[0]):
+        for batch_idx in range(values.shape[0]):
             row_valid = valid[batch_idx]
-            row_values = values_2d[batch_idx, row_valid]
+            row_values = values[batch_idx, row_valid]
             if row_values.numel() <= 1:
                 continue
-            perm = torch.randperm(
+            permutation = torch.randperm(
                 row_values.numel(),
                 generator=generator,
                 device=energy.device,
             )
-            values_2d[batch_idx, row_valid] = row_values[perm]
+            values[batch_idx, row_valid] = row_values[permutation]
         return out
 
     raise ValueError(f"Unknown energy intervention mode: {mode}")
 
 
 class AmbientDenominatorBitNetMLP(nn.Module):
-    """Narrow gated BitNet MLP with full reference-width FFN SubLN and E=0."""
+    """Narrow gated BitNet MLP with full reference-width SubLN and E=0."""
 
-    def __init__(
-        self,
-        config: BitNetConfig,
-        *,
-        reference_width: int,
-    ) -> None:
+    def __init__(self, config: BitNetConfig, *, reference_width: int) -> None:
         super().__init__()
         self.config = config
         self.hidden_size = config.hidden_size
         self.intermediate_size = config.intermediate_size
 
         self.gate_proj = nn.Linear(
-            self.hidden_size,
-            self.intermediate_size,
-            bias=False,
+            self.hidden_size, self.intermediate_size, bias=False
         )
         self.up_proj = nn.Linear(
-            self.hidden_size,
-            self.intermediate_size,
-            bias=False,
+            self.hidden_size, self.intermediate_size, bias=False
         )
         self.down_proj = nn.Linear(
-            self.intermediate_size,
-            self.hidden_size,
-            bias=False,
+            self.intermediate_size, self.hidden_size, bias=False
         )
         self.act_fn = ACT2FN[config.hidden_act]
         self.ffn_sub_norm = ReferenceWidthFFNSubLN(
@@ -231,7 +259,7 @@ class AmbientDenominatorBitNetMLP(nn.Module):
 
 
 class EnergyAwareBitNetMLP(nn.Module):
-    """Narrow gated BitNet MLP with a learned one-scalar omitted-energy head."""
+    """Narrow gated BitNet MLP with one learned positive energy scalar."""
 
     def __init__(
         self,
@@ -252,22 +280,15 @@ class EnergyAwareBitNetMLP(nn.Module):
             raise ValueError("Energy arm requires reference_width > intermediate_size.")
 
         self.gate_proj = nn.Linear(
-            self.hidden_size,
-            self.intermediate_size,
-            bias=False,
+            self.hidden_size, self.intermediate_size, bias=False
         )
         self.up_proj = nn.Linear(
-            self.hidden_size,
-            self.intermediate_size,
-            bias=False,
+            self.hidden_size, self.intermediate_size, bias=False
         )
         self.down_proj = nn.Linear(
-            self.intermediate_size,
-            self.hidden_size,
-            bias=False,
+            self.intermediate_size, self.hidden_size, bias=False
         )
         self.energy_proj = nn.Linear(self.hidden_size, 1, bias=False)
-
         self.act_fn = ACT2FN[config.hidden_act]
         self.ffn_sub_norm = ReferenceWidthFFNSubLN(
             transport_width=self.intermediate_size,
@@ -277,7 +298,7 @@ class EnergyAwareBitNetMLP(nn.Module):
 
         self.energy_mode: EnergyMode = "normal"
         self.energy_attention_mask: torch.Tensor | None = None
-        self.energy_seed: int = 0
+        self.energy_seed = 0
 
     def set_energy_intervention(
         self,
@@ -292,8 +313,6 @@ class EnergyAwareBitNetMLP(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         h = self.act_fn(self.gate_proj(x)) * self.up_proj(x)
-
-        # Positive aggregate omitted-energy estimate.
         e_hat = self.removed_width * F.softplus(self.energy_proj(x))
         e_hat = intervene_on_energy(
             e_hat,
@@ -301,7 +320,6 @@ class EnergyAwareBitNetMLP(nn.Module):
             self.energy_attention_mask,
             seed=self.energy_seed + self.layer_idx,
         )
-
         h = self.ffn_sub_norm(h, omitted_energy=e_hat)
         return self.down_proj(h)
 
@@ -316,6 +334,7 @@ def make_config(shape: SmokeShape, intermediate_size: int) -> BitNetConfig:
         num_key_value_heads=shape.num_key_value_heads,
         hidden_act="relu2",
         max_position_embeddings=shape.max_position_embeddings,
+        initializer_range=smoke_initializer_range(shape),
         rms_norm_eps=shape.rms_norm_eps,
         use_cache=False,
         pad_token_id=0,
@@ -356,15 +375,16 @@ def _slice_from_full(
     source: torch.Tensor,
     target_shape: torch.Size,
 ) -> torch.Tensor | None:
-    if name.endswith("mlp.gate_proj.weight") or name.endswith("mlp.up_proj.weight"):
+    if name.endswith("mlp.gate_proj.weight") or name.endswith(
+        "mlp.up_proj.weight"
+    ):
         if source.ndim == 2 and tuple(target_shape[1:]) == tuple(source.shape[1:]):
             return source[: target_shape[0], :]
     if name.endswith("mlp.down_proj.weight"):
         if source.ndim == 2 and target_shape[0] == source.shape[0]:
             return source[:, : target_shape[1]]
-    if name.endswith("mlp.ffn_sub_norm.weight"):
-        if source.ndim == 1:
-            return source[: target_shape[0]]
+    if name.endswith("mlp.ffn_sub_norm.weight") and source.ndim == 1:
+        return source[: target_shape[0]]
     return None
 
 
@@ -400,7 +420,6 @@ def copy_matched_initialization(
 
     target.load_state_dict(target_state, strict=True)
 
-    # Deterministic, arm-specific EH-1 initialization after all common tensors match.
     for layer_idx, layer in enumerate(target.model.layers):
         if isinstance(layer.mlp, EnergyAwareBitNetMLP):
             generator = torch.Generator(device=layer.mlp.energy_proj.weight.device)
@@ -420,9 +439,7 @@ def assert_matched_initialization(
     target: BitNetForCausalLM,
 ) -> None:
     full_state = full.state_dict()
-    target_state = target.state_dict()
-
-    for name, target_tensor in target_state.items():
+    for name, target_tensor in target.state_dict().items():
         if name.endswith("mlp.energy_proj.weight"):
             continue
         source = full_state[name]
@@ -443,10 +460,7 @@ def convert_to_online_bitlinear(
     prefix: str = "",
     skip_fragments: Iterable[str] = ("lm_head", "energy_proj"),
 ) -> None:
-    """
-    Recursively replace nn.Linear with AutoBitLinear(online_quant=True), copying
-    master weights exactly. The EH-1 energy row and LM head remain ordinary Linear.
-    """
+    """Replace ordinary Linear projections with online-QAT AutoBitLinear."""
     for child_name, child in list(module.named_children()):
         full_name = f"{prefix}.{child_name}" if prefix else child_name
 
@@ -502,25 +516,13 @@ def build_matched_arms(
         reference_width=shape.d_ff_full,
     )
 
-    copy_matched_initialization(
-        full,
-        narrow,
-        energy_seed_base=energy_seed_base,
-    )
-    copy_matched_initialization(
-        full,
-        ambient,
-        energy_seed_base=energy_seed_base,
-    )
-    copy_matched_initialization(
-        full,
-        energy,
-        energy_seed_base=energy_seed_base,
-    )
-
-    assert_matched_initialization(full, narrow)
-    assert_matched_initialization(full, ambient)
-    assert_matched_initialization(full, energy)
+    for target in (narrow, ambient, energy):
+        copy_matched_initialization(
+            full,
+            target,
+            energy_seed_base=energy_seed_base,
+        )
+        assert_matched_initialization(full, target)
 
     arms = {
         "B_full": full,
@@ -552,17 +554,7 @@ def set_energy_intervention(
 
 
 def projection_dividend(shape: SmokeShape) -> dict[str, int]:
-    """
-    Net parameterized projection connections removed by N=D-k:
-        gate: d_model*k
-        up:   d_model*k
-        down: d_model*k
-        EH1 cost: d_model
-    """
-    per_layer = (
-        3 * shape.hidden_size * shape.removed_width
-        - shape.hidden_size
-    )
+    per_layer = 3 * shape.hidden_size * shape.removed_width - shape.hidden_size
     return {
         "per_layer_net_projection_connections_removed": per_layer,
         "all_layers_net_projection_connections_removed": (
@@ -575,5 +567,6 @@ if __name__ == "__main__":
     shape = SmokeShape()
     arms = build_matched_arms(shape=shape)
     print("BUILT_ARMS", sorted(arms))
+    print("INITIALIZATION", initialization_receipt(shape))
     print("DIVIDEND", projection_dividend(shape))
     print("MATCHED_INITIALIZATION_PASS")

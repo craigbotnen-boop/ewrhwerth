@@ -14,19 +14,24 @@ Matched four-arm native-training scaffold:
 Pinned Transformers source convention:
     096f25ae1f501a084d8ff2dcaf25fbc2bd60eba4
 
-Pinned Microsoft BF16 checkpoint reference:
-    microsoft/bitnet-b1.58-2B-4T-bf16
-    commit 276681394656abdadb8e80e5b2c3db5e5d7fcaff
-    hidden_size=2560
-    initializer_range=0.02
+Training master initialization:
+    FOUNDATION_SUBLN_INIT_V1
 
-Smoke-specific initialization amendment:
-    sigma_smoke = 0.02 * sqrt(2560 / hidden_size)
+The public BitNet report explicitly uses SubLN and cites Foundation
+Transformers. The cited SubLN work couples Sub-LayerNorm to a depth-aware
+initialization for stable scaling. For this decoder-only Architecture Smoke we
+therefore freeze the cited recipe before scientific training:
 
-The rule preserves sigma*sqrt(hidden_size), i.e. the hidden-width-normalized
-master-weight scale of the pinned 2B configuration when the Architecture Smoke
-shrinks hidden width to 1024. It is a smoke scaling control, not a claim that
-Microsoft used this cross-width rule in production training.
+    gamma = sqrt(log(2 * num_decoder_layers))
+    q_proj, k_proj: Xavier normal gain 1
+    v_proj, o_proj, all FFN projections: Xavier normal gain gamma
+    embeddings: Normal(0, 1/sqrt(hidden_size))
+    lm_head: Xavier normal gain 1
+    norm weights: 1
+
+The EH-1-only energy row is initialized independently and deterministically as
+Normal(0, 1/sqrt(hidden_size)). This is an Architecture-Smoke training rule,
+not a claim about Microsoft's undisclosed 2B4T production initializer.
 """
 
 from __future__ import annotations
@@ -43,9 +48,6 @@ from transformers import BitNetConfig, BitNetForCausalLM
 from transformers.activations import ACT2FN
 from transformers.integrations.bitnet import AutoBitLinear
 
-
-REFERENCE_HIDDEN_SIZE = 2560
-REFERENCE_INITIALIZER_RANGE = 0.02
 
 EnergyMode = Literal[
     "normal",
@@ -74,25 +76,26 @@ class SmokeShape:
         return self.d_ff_full - self.d_ff_narrow
 
 
-def smoke_initializer_range(shape: SmokeShape) -> float:
-    if shape.hidden_size <= 0:
-        raise ValueError("hidden_size must be positive.")
-    return REFERENCE_INITIALIZER_RANGE * math.sqrt(
-        REFERENCE_HIDDEN_SIZE / shape.hidden_size
-    )
+def subln_initialization_gain(shape: SmokeShape) -> float:
+    if shape.num_hidden_layers <= 0:
+        raise ValueError("num_hidden_layers must be positive.")
+    return math.sqrt(math.log(2 * shape.num_hidden_layers))
 
 
 def initialization_receipt(shape: SmokeShape) -> dict[str, object]:
-    sigma = smoke_initializer_range(shape)
     return {
-        "rule": "WIDTH_SCALED_MASTER_INIT_V1",
-        "formula": "reference_initializer_range * sqrt(reference_hidden_size / smoke_hidden_size)",
-        "reference_hidden_size": REFERENCE_HIDDEN_SIZE,
-        "reference_initializer_range": REFERENCE_INITIALIZER_RANGE,
-        "smoke_hidden_size": shape.hidden_size,
-        "smoke_initializer_range": sigma,
-        "invariant": "initializer_range * sqrt(hidden_size)",
-        "claim_ceiling": "Architecture Smoke scaling control; not a Microsoft production-training initialization claim.",
+        "rule": "FOUNDATION_SUBLN_INIT_V1",
+        "architecture": "decoder-only SubLN",
+        "gamma_formula": "sqrt(log(2 * num_decoder_layers))",
+        "num_decoder_layers": shape.num_hidden_layers,
+        "gamma": subln_initialization_gain(shape),
+        "embedding_rule": "Normal(0, 1/sqrt(hidden_size))",
+        "lm_head_rule": "Xavier normal gain 1",
+        "q_k_rule": "Xavier normal gain 1",
+        "v_o_ffn_rule": "Xavier normal gain gamma",
+        "norm_rule": "weight=1",
+        "eh1_energy_row_rule": "Normal(0, 1/sqrt(hidden_size)); deterministic layer-specific seed",
+        "claim_ceiling": "Architecture Smoke initializer derived from the cited Foundation Transformers SubLN recipe; not a Microsoft production-training initialization claim.",
     }
 
 
@@ -235,7 +238,6 @@ class AmbientDenominatorBitNetMLP(nn.Module):
         self.config = config
         self.hidden_size = config.hidden_size
         self.intermediate_size = config.intermediate_size
-
         self.gate_proj = nn.Linear(
             self.hidden_size, self.intermediate_size, bias=False
         )
@@ -275,7 +277,6 @@ class EnergyAwareBitNetMLP(nn.Module):
         self.reference_width = int(reference_width)
         self.removed_width = self.reference_width - self.intermediate_size
         self.layer_idx = int(layer_idx)
-
         if self.removed_width <= 0:
             raise ValueError("Energy arm requires reference_width > intermediate_size.")
 
@@ -295,7 +296,6 @@ class EnergyAwareBitNetMLP(nn.Module):
             reference_width=self.reference_width,
             eps=config.rms_norm_eps,
         )
-
         self.energy_mode: EnergyMode = "normal"
         self.energy_attention_mask: torch.Tensor | None = None
         self.energy_seed = 0
@@ -334,7 +334,7 @@ def make_config(shape: SmokeShape, intermediate_size: int) -> BitNetConfig:
         num_key_value_heads=shape.num_key_value_heads,
         hidden_act="relu2",
         max_position_embeddings=shape.max_position_embeddings,
-        initializer_range=smoke_initializer_range(shape),
+        initializer_range=0.02,
         rms_norm_eps=shape.rms_norm_eps,
         use_cache=False,
         pad_token_id=0,
@@ -347,6 +347,50 @@ def make_config(shape: SmokeShape, intermediate_size: int) -> BitNetConfig:
     )
 
 
+@torch.no_grad()
+def initialize_foundation_subln_master(
+    model: BitNetForCausalLM,
+    *,
+    shape: SmokeShape,
+    seed: int,
+) -> None:
+    """Freeze the decoder-only Foundation-Transformers SubLN initialization."""
+    gamma = subln_initialization_gain(shape)
+    generator = torch.Generator(device=model.model.embed_tokens.weight.device)
+    generator.manual_seed(int(seed))
+
+    model.model.embed_tokens.weight.normal_(
+        mean=0.0,
+        std=1.0 / math.sqrt(shape.hidden_size),
+        generator=generator,
+    )
+    nn.init.xavier_normal_(model.lm_head.weight, gain=1.0, generator=generator)
+
+    for layer in model.model.layers:
+        projection_gains = (
+            (layer.self_attn.q_proj, 1.0),
+            (layer.self_attn.k_proj, 1.0),
+            (layer.self_attn.v_proj, gamma),
+            (layer.self_attn.o_proj, gamma),
+            (layer.mlp.gate_proj, gamma),
+            (layer.mlp.up_proj, gamma),
+            (layer.mlp.down_proj, gamma),
+        )
+        for projection, gain in projection_gains:
+            nn.init.xavier_normal_(
+                projection.weight,
+                gain=gain,
+                generator=generator,
+            )
+
+        layer.input_layernorm.weight.fill_(1.0)
+        layer.post_attention_layernorm.weight.fill_(1.0)
+        layer.self_attn.attn_sub_norm.weight.fill_(1.0)
+        layer.mlp.ffn_sub_norm.weight.fill_(1.0)
+
+    model.model.norm.weight.fill_(1.0)
+
+
 def _replace_mlp_modules(
     model: BitNetForCausalLM,
     *,
@@ -355,7 +399,6 @@ def _replace_mlp_modules(
 ) -> None:
     if arm_name not in {"B_ambient", "E_EH1"}:
         return
-
     for layer_idx, layer in enumerate(model.model.layers):
         if arm_name == "B_ambient":
             layer.mlp = AmbientDenominatorBitNetMLP(
@@ -401,15 +444,12 @@ def copy_matched_initialization(
     for name, target_tensor in target_state.items():
         if name.endswith("mlp.energy_proj.weight"):
             continue
-
         source = full_state.get(name)
         if source is None:
             raise KeyError(f"Target parameter has no full-arm source: {name}")
-
         if source.shape == target_tensor.shape:
             target_tensor.copy_(source)
             continue
-
         sliced = _slice_from_full(name, source, target_tensor.shape)
         if sliced is None or sliced.shape != target_tensor.shape:
             raise ValueError(
@@ -420,17 +460,16 @@ def copy_matched_initialization(
 
     target.load_state_dict(target_state, strict=True)
 
+    energy_std = 1.0 / math.sqrt(target.config.hidden_size)
     for layer_idx, layer in enumerate(target.model.layers):
         if isinstance(layer.mlp, EnergyAwareBitNetMLP):
             generator = torch.Generator(device=layer.mlp.energy_proj.weight.device)
             generator.manual_seed(int(energy_seed_base + layer_idx))
-            init = torch.empty_like(layer.mlp.energy_proj.weight)
-            init.normal_(
+            layer.mlp.energy_proj.weight.normal_(
                 mean=0.0,
-                std=target.config.initializer_range,
+                std=energy_std,
                 generator=generator,
             )
-            layer.mlp.energy_proj.weight.copy_(init)
 
 
 @torch.no_grad()
@@ -463,10 +502,8 @@ def convert_to_online_bitlinear(
     """Replace ordinary Linear projections with online-QAT AutoBitLinear."""
     for child_name, child in list(module.named_children()):
         full_name = f"{prefix}.{child_name}" if prefix else child_name
-
         if isinstance(child, AutoBitLinear):
             continue
-
         if isinstance(child, nn.Linear) and not any(
             fragment in full_name for fragment in skip_fragments
         ):
@@ -484,7 +521,6 @@ def convert_to_online_bitlinear(
                     replacement.bias.copy_(child.bias)
             setattr(module, child_name, replacement)
             continue
-
         convert_to_online_bitlinear(
             child,
             prefix=full_name,
@@ -516,6 +552,12 @@ def build_matched_arms(
         reference_width=shape.d_ff_full,
     )
 
+    initialize_foundation_subln_master(
+        full,
+        shape=shape,
+        seed=initialization_seed,
+    )
+
     for target in (narrow, ambient, energy):
         copy_matched_initialization(
             full,
@@ -530,10 +572,8 @@ def build_matched_arms(
         "B_ambient": ambient,
         "E_EH1": energy,
     }
-
     for model in arms.values():
         convert_to_online_bitlinear(model)
-
     return arms
 
 

@@ -1,0 +1,64 @@
+{
+  "amendment_id": "BITNET_EH1_INITIALIZATION_AMENDMENT_V2",
+  "campaign": "BITNET_EH1_ARCHITECTURE_SMOKE_V1",
+  "timing": "PRE_TRAINING_PRE_VERDICT",
+  "date_utc": "2026-07-15",
+  "supersedes": "BITNET_EH1_INITIALIZATION_AMENDMENT_V1",
+  "supersession_reason": "V1's width-scaled fixed-normal candidate passed one FP32 draw but failed the exact bf16-mixed first-backward preflight under a fresh matched construction. No optimizer step or scientific training verdict occurred under V1.",
+  "disposition": "ADOPT_FOUNDATION_SUBLN_INIT_V1",
+  "original_failure": {
+    "description": "BitNetConfig default normal std=0.02 yielded finite forward loss but immediate depthwise backward explosion and non-finite gradients in B_full. Failure reproduced with SDPA and eager attention, at sequence lengths 128 through 2048, with and without gradient checkpointing, and in FP32 as well as bf16-mixed computation.",
+    "not_eh1_specific": true,
+    "not_attention_backend_specific": true,
+    "not_sequence_length_specific": true,
+    "not_gradient_checkpointing_specific": true,
+    "not_bf16_only": true
+  },
+  "source_basis": {
+    "bitnet_report": "The public BitNet b1.58 2B4T report uses SubLN and cites Foundation Transformers for the normalization architecture.",
+    "foundation_transformers": "Foundation Transformers defines Sub-LayerNorm together with a theoretically derived initialization for stable scaling. For decoder-only SubLN, gamma=sqrt(log(2M)); q and k projections use Xavier gain 1; FFN, value, and output projections use Xavier gain gamma.",
+    "public_training_recipe_gap": "The public BitNet report and released Transformers inference/QAT implementation do not expose Microsoft's exact 2B4T production initialization procedure.",
+    "claim_status": "FOUNDATION_SUBLN_INIT_V1 is a documented Architecture-Smoke training rule derived from the cited SubLN source, not a reconstruction claim about Microsoft's production initializer."
+  },
+  "frozen_initialization_rule": {
+    "name": "FOUNDATION_SUBLN_INIT_V1",
+    "num_decoder_layers": 12,
+    "gamma_formula": "sqrt(log(2 * num_decoder_layers))",
+    "gamma": 1.782709687623856,
+    "embedding_rule": "Normal(0, 1/sqrt(hidden_size))",
+    "lm_head_rule": "Xavier normal gain 1",
+    "q_proj_rule": "Xavier normal gain 1",
+    "k_proj_rule": "Xavier normal gain 1",
+    "v_proj_rule": "Xavier normal gain gamma",
+    "o_proj_rule": "Xavier normal gain gamma",
+    "gate_proj_rule": "Xavier normal gain gamma",
+    "up_proj_rule": "Xavier normal gain gamma",
+    "down_proj_rule": "Xavier normal gain gamma",
+    "norm_weight_rule": "1",
+    "eh1_energy_projection_rule": "Normal(0, 1/sqrt(hidden_size)) with deterministic layer-specific seed",
+    "matched_arm_rule": "Initialize B_full once per paired seed; copy exact shared tensors and declared FFN slices into B_narrow, B_ambient, and E_EH1 before online BitLinear conversion. EH1 energy rows are the only arm-specific initialized common-path exception."
+  },
+  "preflight_evidence": {
+    "hardware": "NVIDIA A100-SXM4-80GB",
+    "compute": "bf16 CUDA autocast with gradient checkpointing",
+    "sequence_lengths_tested": [128, 2048],
+    "paired_seeds_tested": [17, 29, 41],
+    "b_full_xavier_control_all_finite": true,
+    "b_full_foundation_subln_all_finite": true,
+    "foundation_subln_2048_results": [
+      {"seed": 17, "loss": 8.529106140136719, "nonfinite_gradient_values": 0, "max_abs_gradient": 0.0133056640625},
+      {"seed": 29, "loss": 8.512633323669434, "nonfinite_gradient_values": 0, "max_abs_gradient": 0.015869140625},
+      {"seed": 41, "loss": 8.5406494140625, "nonfinite_gradient_values": 0, "max_abs_gradient": 0.0167236328125}
+    ],
+    "verdict": "B_FULL_FOUNDATION_SUBLN_FIRST_BACKWARD_FINITE_3_OF_3"
+  },
+  "forbidden_shortcuts": [
+    "Do not zero, clamp, or silently drop non-finite gradients.",
+    "Do not use V1 WIDTH_SCALED_MASTER_INIT_V1 for scientific training.",
+    "Do not initialize paired arms independently on shared tensors.",
+    "Do not claim FOUNDATION_SUBLN_INIT_V1 is Microsoft's undisclosed production initialization recipe.",
+    "Do not interpret initialization-stability tests as evidence for or against EH1."
+  ],
+  "claim_ceiling": "ARCHITECTURE_SMOKE / PRE_TRAINING_NUMERICAL_STABILITY_AMENDMENT",
+  "historical_qabs_state_unchanged": "BLOCKED_BITNET_2B4T_AGGREGATE_QABS"
+}

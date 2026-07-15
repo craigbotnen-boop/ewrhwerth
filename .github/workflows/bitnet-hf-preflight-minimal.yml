@@ -10,22 +10,30 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Minimal SlimPajama traceback
+      - name: Minimal pinned SlimPajama mirror preflight
         run: |
           python3 -m pip install -q 'datasets==4.1.1'
           python3 - <<'PY'
           import traceback
           try:
               from datasets import load_dataset
-              from huggingface_hub import HfApi
-              dataset_id='cerebras/SlimPajama-627B'
-              revision=HfApi().dataset_info(dataset_id).sha
+              dataset_id='gmongaras/SlimPajama-627B_Reupload'
+              revision='c34c22dbb10ae6b264a2f357a909d1a537141b36'
+              print('DATASET_ID', dataset_id, flush=True)
               print('REVISION', revision, flush=True)
+              expected = {
+                  'train': ('RedPajamaCommonCrawl', "J.J. Abrams Returns To Write And Direct 'Star Wars: Episode IX'"),
+                  'validation': ('RedPajamaGithub', 'namespace base {'),
+              }
               for split in ('train','validation'):
                   print('OPEN_SPLIT', split, flush=True)
                   ds=load_dataset(dataset_id, split=split, streaming=True, revision=revision)
                   row=next(iter(ds))
-                  print('ROW_OK', split, sorted(row.keys()), len(row.get('text','')), flush=True)
+                  meta=(row.get('meta') or {}).get('redpajama_set_name')
+                  text=row.get('text','')
+                  assert meta == expected[split][0]
+                  assert text.startswith(expected[split][1])
+                  print('ROW_OK', split, sorted(row.keys()), meta, len(text), flush=True)
               print('HF_PREFLIGHT_PASS', flush=True)
           except Exception as exc:
               print('HF_PREFLIGHT_FAIL', type(exc).__name__, repr(exc), flush=True)

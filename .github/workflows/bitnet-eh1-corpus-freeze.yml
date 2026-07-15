@@ -30,7 +30,6 @@ jobs:
           import numpy as np
           import datasets, tokenizers, huggingface_hub
           from datasets import load_dataset
-          from huggingface_hub import HfApi
           from tokenizers import Tokenizer
           from tokenizers.models import BPE
           from tokenizers.pre_tokenizers import ByteLevel
@@ -40,7 +39,22 @@ jobs:
           ROOT = Path('bitnet_eh1/frozen_corpus')
           SRC = ROOT/'source_jsonl'; TOK = ROOT/'tokenized'; SCH = ROOT/'schedules'
           for p in (SRC, TOK, SCH): p.mkdir(parents=True, exist_ok=True)
-          DATASET_ID='cerebras/SlimPajama-627B'
+
+          # Pre-training source amendment. The original Cerebras Hub repo is not
+          # resolvable through the current Hub API/resolve endpoint, so this run
+          # pins a public full-corpus reupload. This is not a bytewise upstream
+          # identity claim. Sampled source-order compatibility is asserted below.
+          DATASET_ID='gmongaras/SlimPajama-627B_Reupload'
+          DATASET_REVISION='c34c22dbb10ae6b264a2f357a909d1a537141b36'
+          UPSTREAM_DATASET_ID='cerebras/SlimPajama-627B'
+          FIRST32_CANON_SHA256={
+              'train':'18291e33adc67674291390b4b445f3c0d3da8e6add91f8c9c52fbabee975377b',
+              'validation':'e56046fffef07ab782c1f3144176113c6b97d5c1d196f6dec67241e4ef75e1d1',
+          }
+          EXPECTED_FIRST={
+              'train':('RedPajamaCommonCrawl', "J.J. Abrams Returns To Write And Direct 'Star Wars: Episode IX'"),
+              'validation':('RedPajamaGithub', 'namespace base {'),
+          }
           SPECIAL=['<pad>','<bos>','<eos>','<unk>']; SID={t:i for i,t in enumerate(SPECIAL)}
           SEQ=2048; BATCH_TOK=32768; UPDATES=1526; SEEDS=[17,29,41]; VAL_SEQ=2048
 
@@ -50,11 +64,41 @@ jobs:
                   for c in iter(lambda:f.read(1<<20), b''): h.update(c)
               return h.hexdigest()
 
-          revision=HfApi().dataset_info(DATASET_ID).sha
-          assert isinstance(revision,str) and len(revision)==40
+          def verify_sampled_order(split):
+              ds=load_dataset(DATASET_ID, split=split, streaming=True, revision=DATASET_REVISION)
+              h=hashlib.sha256(); first=None; rows=0
+              for idx,row in enumerate(ds):
+                  canon=json.dumps({'text':row.get('text'),'meta':row.get('meta')},ensure_ascii=False,separators=(',',':'),sort_keys=True)
+                  h.update(canon.encode('utf-8')); h.update(b'\n')
+                  if idx==0: first=row
+                  rows+=1
+                  if idx==31: break
+              assert rows==32
+              meta=(first.get('meta') or {}).get('redpajama_set_name')
+              text=first.get('text','')
+              assert meta==EXPECTED_FIRST[split][0]
+              assert text.startswith(EXPECTED_FIRST[split][1])
+              digest=h.hexdigest()
+              assert digest==FIRST32_CANON_SHA256[split]
+              return {'first32_canonical_sha256':digest,'first_row_meta_set_name':meta,'first_row_text_prefix':EXPECTED_FIRST[split][1]}
+
+          sampled_compat={split:verify_sampled_order(split) for split in ('train','validation')}
+          amendment={
+              'campaign':'BITNET_EH1_ARCHITECTURE_SMOKE_SOURCE_AMENDMENT_V1',
+              'timing':'PRE_TRAINING',
+              'original_requested_dataset_id':UPSTREAM_DATASET_ID,
+              'substituted_dataset_id':DATASET_ID,
+              'substituted_dataset_revision':DATASET_REVISION,
+              'reason':'Original Cerebras Hub dataset API/resolve endpoint was not accessible during 2026-07-15 preflight; GitHub Actions failed closed before corpus materialization.',
+              'mirror_declaration':'Mirror README declares a reupload of the original SlimPajama-627B corpus into larger Parquet chunks.',
+              'sampled_order_compatibility':sampled_compat,
+              'identity_status':'PINNED_PUBLIC_REUPLOAD_WITH_SAMPLED_ORDER_COMPATIBILITY; NOT_BYTEWISE_UPSTREAM_CERTIFIED',
+              'scientific_effect':'Architecture Smoke source freeze amended before any training verdict. Claim ceiling remains Architecture Smoke only.',
+          }
+          (SRC/'SOURCE_SUBSTITUTION_AMENDMENT.json').write_text(json.dumps(amendment,indent=2,sort_keys=True))
 
           def materialize(split, target_mib, out):
-              ds=load_dataset(DATASET_ID, split=split, streaming=True, revision=revision)
+              ds=load_dataset(DATASET_ID, split=split, streaming=True, revision=DATASET_REVISION)
               target=target_mib*1024*1024; n=seen=nbytes=0; first=last=None
               with out.open('w',encoding='utf-8',newline='\n') as f:
                   for idx,row in enumerate(ds):
@@ -66,10 +110,23 @@ jobs:
                       n+=1; nbytes+=len(text.encode('utf-8'))
                       if nbytes>=target: break
               assert nbytes>=target
-              return {'split':split,'target_text_bytes':target,'realized_text_bytes':nbytes,'selected_document_count':n,'source_rows_seen':seen,'first_selected_source_row':first,'last_selected_source_row':last,'output_path':str(out),'output_sha256':sha(out),'output_size_bytes':out.stat().st_size,'selection_rule':'native order; nonempty string text only; no normalization/strip/truncate/shuffle/resample; stop when cumulative UTF-8 text bytes first reach/exceed target'}
+              return {'split':split,'target_text_bytes':target,'realized_text_bytes':nbytes,'selected_document_count':n,'source_rows_seen':seen,'first_selected_source_row':first,'last_selected_source_row':last,'output_path':str(out),'output_sha256':sha(out),'output_size_bytes':out.stat().st_size,'selection_rule':'native streaming order; nonempty string text only; no normalization/strip/truncate/shuffle/resample; stop when cumulative UTF-8 text bytes first reach/exceed target'}
 
           train_jsonl=SRC/'train.jsonl'; val_jsonl=SRC/'validation.jsonl'
-          source_manifest={'campaign':'BITNET_EH1_ARCHITECTURE_SMOKE_SLIMPAJAMA_SOURCE_FREEZE_V1','dataset_id':DATASET_ID,'dataset_revision':revision,'datasets_version':datasets.__version__,'huggingface_hub_version':huggingface_hub.__version__,'train':materialize('train',256,train_jsonl),'validation':materialize('validation',32,val_jsonl),'claim_ceiling':'Deterministic ordered SlimPajama subsample for Architecture Smoke; not Microsoft 2B4T production corpus.'}
+          source_manifest={
+              'campaign':'BITNET_EH1_ARCHITECTURE_SMOKE_SLIMPAJAMA_SOURCE_FREEZE_V2',
+              'dataset_id':DATASET_ID,
+              'dataset_revision':DATASET_REVISION,
+              'upstream_declared_original':UPSTREAM_DATASET_ID,
+              'source_identity_status':amendment['identity_status'],
+              'source_amendment_path':str(SRC/'SOURCE_SUBSTITUTION_AMENDMENT.json'),
+              'source_amendment_sha256':sha(SRC/'SOURCE_SUBSTITUTION_AMENDMENT.json'),
+              'datasets_version':datasets.__version__,
+              'huggingface_hub_version':huggingface_hub.__version__,
+              'train':materialize('train',256,train_jsonl),
+              'validation':materialize('validation',32,val_jsonl),
+              'claim_ceiling':'Deterministic ordered pinned-mirror SlimPajama subsample for Architecture Smoke; source is not bytewise upstream-certified and is not the Microsoft 2B4T production corpus.',
+          }
           (SRC/'SOURCE_JSONL_FREEZE_MANIFEST.json').write_text(json.dumps(source_manifest,indent=2,sort_keys=True))
 
           def texts(path):
@@ -121,13 +178,14 @@ jobs:
           sched_manifest={'campaign':'BITNET_EH1_ARCHITECTURE_SMOKE_BATCH_SCHEDULE_V2','sequence_length':SEQ,'source_window_tokens':window,'global_batch_tokens':BATCH_TOK,'optimizer_updates':UPDATES,'realized_training_tokens':UPDATES*BATCH_TOK,'train_token_count':train_tokens,'train_nonoverlapping_source_window_count':train_windows,'allow_train_window_reuse':False,'train_schedules':schedules,'validation':{'token_count':val_tokens,'nonoverlapping_source_window_count':val_windows,'selected_sequence_count':VAL_SEQ,'selection_rule':'first N non-overlapping source windows in frozen validation token order','path':str(vp),'sha256':sha(vp),'shape':list(vo.shape)},'pairing_rule':'Within seed all four arms consume identical train offsets; all arms/interventions use identical validation offsets.'}
           (SCH/'BATCH_SCHEDULE_MANIFEST.json').write_text(json.dumps(sched_manifest,indent=2,sort_keys=True))
 
-          closeout={'campaign':'BITNET_EH1_ARCHITECTURE_SMOKE_FREEZE_CLOSEOUT_V1','source_dataset_revision':revision,'source_train_jsonl_sha256':source_manifest['train']['output_sha256'],'source_validation_jsonl_sha256':source_manifest['validation']['output_sha256'],'tokenizer_sha256':corpus_manifest['tokenizer']['sha256'],'train_token_bin_sha256':corpus_manifest['train']['token_bin_sha256'],'validation_token_bin_sha256':corpus_manifest['validation']['token_bin_sha256'],'train_token_count':train_tokens,'validation_token_count':val_tokens,'realized_training_tokens':UPDATES*BATCH_TOK,'paired_seeds':SEEDS,'validation_sequence_count':VAL_SEQ,'train_window_reuse':False,'verdict':'CORPUS_TOKENIZER_AND_SCHEDULE_FREEZE_PASS','claim_ceiling':'Architecture Smoke data freeze only; SlimPajama subsample is not the Microsoft 2B4T production corpus.'}
+          closeout={'campaign':'BITNET_EH1_ARCHITECTURE_SMOKE_FREEZE_CLOSEOUT_V2','source_dataset_id':DATASET_ID,'source_dataset_revision':DATASET_REVISION,'source_identity_status':amendment['identity_status'],'source_amendment_sha256':source_manifest['source_amendment_sha256'],'source_train_jsonl_sha256':source_manifest['train']['output_sha256'],'source_validation_jsonl_sha256':source_manifest['validation']['output_sha256'],'tokenizer_sha256':corpus_manifest['tokenizer']['sha256'],'train_token_bin_sha256':corpus_manifest['train']['token_bin_sha256'],'validation_token_bin_sha256':corpus_manifest['validation']['token_bin_sha256'],'train_token_count':train_tokens,'validation_token_count':val_tokens,'realized_training_tokens':UPDATES*BATCH_TOK,'paired_seeds':SEEDS,'validation_sequence_count':VAL_SEQ,'train_window_reuse':False,'verdict':'CORPUS_TOKENIZER_AND_SCHEDULE_FREEZE_PASS','claim_ceiling':'Architecture Smoke data freeze only; pinned public reupload is not bytewise upstream-certified and the corpus is not the Microsoft 2B4T production corpus.'}
           (ROOT/'FREEZE_CLOSEOUT_RECEIPT.json').write_text(json.dumps(closeout,indent=2,sort_keys=True))
           print(json.dumps(closeout,indent=2,sort_keys=True))
           PY
       - name: Build compact receipt bundle
         run: |
           mkdir -p bitnet_eh1/receipt_bundle
+          cp bitnet_eh1/frozen_corpus/source_jsonl/SOURCE_SUBSTITUTION_AMENDMENT.json bitnet_eh1/receipt_bundle/
           cp bitnet_eh1/frozen_corpus/source_jsonl/SOURCE_JSONL_FREEZE_MANIFEST.json bitnet_eh1/receipt_bundle/
           cp bitnet_eh1/frozen_corpus/tokenized/CORPUS_FREEZE_MANIFEST.json bitnet_eh1/receipt_bundle/
           cp bitnet_eh1/frozen_corpus/schedules/BATCH_SCHEDULE_MANIFEST.json bitnet_eh1/receipt_bundle/

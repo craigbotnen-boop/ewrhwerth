@@ -42,14 +42,43 @@ jobs:
       - name: Run fail-closed four-arm end-to-end trainer smoke
         working-directory: bitnet_eh1
         run: |
+          set +e
           python run_four_arm_tiny_trainer_smoke.py \
-            --output BITNET_EH1_FOUR_ARM_TINY_TRAINER_SMOKE_V1.json
+            --output BITNET_EH1_FOUR_ARM_TINY_TRAINER_SMOKE_V1.json \
+            > BITNET_EH1_FOUR_ARM_TINY_TRAINER_SMOKE_V1.log 2>&1
+          status=$?
+          cat BITNET_EH1_FOUR_ARM_TINY_TRAINER_SMOKE_V1.log
+          if [ ! -f BITNET_EH1_FOUR_ARM_TINY_TRAINER_SMOKE_V1.json ]; then
+            SMOKE_EXIT_STATUS="$status" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
 
-      - name: Upload implementation receipt
+          log_path = Path('BITNET_EH1_FOUR_ARM_TINY_TRAINER_SMOKE_V1.log')
+          text = log_path.read_text(encoding='utf-8', errors='replace') if log_path.exists() else ''
+          receipt = {
+              'campaign': 'BITNET_EH1_ARCHITECTURE_SMOKE_V1',
+              'smoke_id': 'BITNET_EH1_FOUR_ARM_TINY_TRAINER_SMOKE_V1',
+              'scope': 'IMPLEMENTATION_ONLY_NON_VERDICT',
+              'verdict': 'FOUR_ARM_TINY_END_TO_END_TRAINER_SMOKE_FAIL_BEFORE_RECEIPT',
+              'shell_exit_status': int(os.environ['SMOKE_EXIT_STATUS']),
+              'log_tail': text[-12000:],
+              'claim_ceiling': 'IMPLEMENTATION FAILURE ONLY; no scientific inference',
+          }
+          Path('BITNET_EH1_FOUR_ARM_TINY_TRAINER_SMOKE_V1.json').write_text(
+              json.dumps(receipt, indent=2, sort_keys=True), encoding='utf-8'
+          )
+          PY
+          fi
+          exit "$status"
+
+      - name: Upload implementation receipt and log
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: bitnet-eh1-four-arm-tiny-trainer-smoke-receipt
-          path: bitnet_eh1/BITNET_EH1_FOUR_ARM_TINY_TRAINER_SMOKE_V1.json
+          path: |
+            bitnet_eh1/BITNET_EH1_FOUR_ARM_TINY_TRAINER_SMOKE_V1.json
+            bitnet_eh1/BITNET_EH1_FOUR_ARM_TINY_TRAINER_SMOKE_V1.log
           if-no-files-found: error
           retention-days: 30

@@ -28,6 +28,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install --index-url https://download.pytorch.org/whl/cpu 'torch==2.7.1'
           python -m pip install \
+            'numpy==2.3.3' \
             'regex!=2019.12.17' \
             'packaging>=20.0' \
             requests \

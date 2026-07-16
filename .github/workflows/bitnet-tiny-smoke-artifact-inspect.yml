@@ -1,0 +1,27 @@
+name: BitNet Tiny Smoke Artifact Inspect
+
+on:
+  pull_request:
+    branches: [three-paper-suite]
+    paths: ['.github/workflows/bitnet-tiny-smoke-artifact-inspect.yml']
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: bitnet-eh1-four-arm-tiny-trainer-smoke-receipt
+          path: artifact
+          run-id: 29463261373
+          github-token: ${{ github.token }}
+      - name: Print receipt and log
+        run: |
+          echo '--- RECEIPT ---'
+          cat artifact/BITNET_EH1_FOUR_ARM_TINY_TRAINER_SMOKE_V1.json
+          echo '--- LOG ---'
+          cat artifact/BITNET_EH1_FOUR_ARM_TINY_TRAINER_SMOKE_V1.log

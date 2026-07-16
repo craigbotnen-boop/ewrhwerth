@@ -1,0 +1,55 @@
+name: BitNet EH1 Four-Arm Tiny Trainer Smoke
+
+on:
+  pull_request:
+    branches: [three-paper-suite]
+    paths:
+      - '.github/workflows/bitnet-eh1-four-arm-tiny-smoke.yml'
+      - 'bitnet_eh1/bitnet_energy_head_smoke_core.py'
+      - 'bitnet_eh1/run_four_arm_tiny_trainer_smoke.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  four-arm-tiny-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install pinned CPU implementation environment
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu 'torch==2.7.1'
+          python -m pip install \
+            'regex!=2019.12.17' \
+            'packaging>=20.0' \
+            requests \
+            'pyyaml>=5.1' \
+            filelock \
+            'safetensors>=0.4.3' \
+            'huggingface-hub==0.35.3' \
+            'tokenizers==0.21.4'
+          python -m pip install --no-deps \
+            'https://github.com/huggingface/transformers/archive/096f25ae1f501a084d8ff2dcaf25fbc2bd60eba4.zip'
+
+      - name: Run fail-closed four-arm end-to-end trainer smoke
+        working-directory: bitnet_eh1
+        run: |
+          python run_four_arm_tiny_trainer_smoke.py \
+            --output BITNET_EH1_FOUR_ARM_TINY_TRAINER_SMOKE_V1.json
+
+      - name: Upload implementation receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bitnet-eh1-four-arm-tiny-trainer-smoke-receipt
+          path: bitnet_eh1/BITNET_EH1_FOUR_ARM_TINY_TRAINER_SMOKE_V1.json
+          if-no-files-found: error
+          retention-days: 30

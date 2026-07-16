@@ -1,12 +1,6 @@
 name: BitNet EH1 Four-Arm Tiny Trainer Smoke
 
 on:
-  pull_request:
-    branches: [three-paper-suite]
-    paths:
-      - '.github/workflows/bitnet-eh1-four-arm-tiny-smoke.yml'
-      - 'bitnet_eh1/bitnet_energy_head_smoke_core.py'
-      - 'bitnet_eh1/run_four_arm_tiny_trainer_smoke.py'
   workflow_dispatch:
 
 permissions:

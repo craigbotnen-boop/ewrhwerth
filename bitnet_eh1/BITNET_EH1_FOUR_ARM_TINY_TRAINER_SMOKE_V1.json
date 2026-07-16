@@ -1,0 +1,100 @@
+{
+  "campaign": "BITNET_EH1_ARCHITECTURE_SMOKE_V1",
+  "smoke_id": "BITNET_EH1_FOUR_ARM_TINY_TRAINER_SMOKE_V1",
+  "date_utc": "2026-07-16",
+  "scope": "IMPLEMENTATION_ONLY_NON_VERDICT",
+  "execution_host": "GitHub Actions",
+  "hardware": "ubuntu-latest CPU",
+  "workflow_run_id": 29463496919,
+  "workflow_job_id": 87511677025,
+  "source_commit": "38c1d9fd51c7e356058b5191b2ebbbfa318e34cd",
+  "artifact": {
+    "artifact_id": 8362070160,
+    "name": "bitnet-eh1-four-arm-tiny-trainer-smoke-receipt",
+    "sha256": "9c5883a2e44df4f8f8532cf51354b5d9792ea53ac6876a4a614c3f12a63f7d35",
+    "expires_at": "2026-08-15T01:12:46Z"
+  },
+  "shape": {
+    "vocab_size": 128,
+    "hidden_size": 64,
+    "num_hidden_layers": 2,
+    "num_attention_heads": 4,
+    "num_key_value_heads": 1,
+    "d_ff_full": 96,
+    "d_ff_narrow": 88,
+    "sequence_length": 48,
+    "batch_size": 4
+  },
+  "input_process": "Deterministic structured context-dependent recurrence; explicitly not IID tokens.",
+  "shared_updates_per_arm": 3,
+  "matched_initialization_assertions": "PASS_IN_CORE_BEFORE_QAT_CONVERSION",
+  "arms": [
+    {
+      "arm": "B_full",
+      "update_count": 3,
+      "all_grad_norms_finite": true,
+      "total_nonfinite_gradient_values": 0,
+      "parameter_delta_l2": 0.5305865991606503,
+      "final_batch_nll": 5.1538872718811035,
+      "final_logits_finite": true
+    },
+    {
+      "arm": "B_narrow",
+      "update_count": 3,
+      "all_grad_norms_finite": true,
+      "total_nonfinite_gradient_values": 0,
+      "parameter_delta_l2": 0.5210618440691068,
+      "final_batch_nll": 5.102753162384033,
+      "final_logits_finite": true
+    },
+    {
+      "arm": "B_ambient",
+      "update_count": 3,
+      "all_grad_norms_finite": true,
+      "total_nonfinite_gradient_values": 0,
+      "parameter_delta_l2": 0.5210506841736198,
+      "final_batch_nll": 5.103979110717773,
+      "final_logits_finite": true
+    },
+    {
+      "arm": "E_EH1",
+      "update_count": 3,
+      "all_grad_norms_finite": true,
+      "total_nonfinite_gradient_values": 0,
+      "parameter_delta_l2": 0.5224745743172569,
+      "final_batch_nll": 5.144494533538818,
+      "final_logits_finite": true
+    }
+  ],
+  "eh1_interventions": {
+    "normal_nll": 5.144494533538818,
+    "rows": [
+      {
+        "mode": "zero",
+        "delta_nll_vs_normal": -0.017560958862304688,
+        "max_abs_logit_delta_vs_normal": 1.0542271137237549
+      },
+      {
+        "mode": "mean",
+        "delta_nll_vs_normal": 0.002285003662109375,
+        "max_abs_logit_delta_vs_normal": 0.5154452919960022
+      },
+      {
+        "mode": "shuffle_within_sequence",
+        "delta_nll_vs_normal": 0.008142471313476562,
+        "max_abs_logit_delta_vs_normal": 0.7781818509101868
+      },
+      {
+        "mode": "shuffle_cross_sequence",
+        "delta_nll_vs_normal": 0.0027251243591308594,
+        "max_abs_logit_delta_vs_normal": 0.7172563076019287
+      }
+    ],
+    "interpretation": "All frozen intervention modes are wired and alter the trained tiny-model logits. The signs and magnitudes are scientifically uninterpretable at this scale and horizon."
+  },
+  "verdict": "FOUR_ARM_TINY_END_TO_END_TRAINER_SMOKE_PASS_NON_VERDICT",
+  "interpretation": "All four matched arms completed repeated forward, explicit next-token loss, backward, pre-clip finite-gradient scan, gradient clipping, optimizer update, parameter movement, and finite final-logit checks. The E_EH1 intervention path remained operational after training.",
+  "forbidden_interpretation": "This tiny structured-data CPU smoke is not evidence for WIDTH_PENALTY, AMBIENT_DENOMINATOR, HEAD_USE, TOKEN_CONDITIONING, HEAD_INCREMENT, RECOVERY, language quality, or production efficiency.",
+  "claim_ceiling": "IMPLEMENTATION ONLY",
+  "full_campaign_status": "BLOCKED_ON_COMPUTE_CREDITS"
+}

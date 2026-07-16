@@ -19,5 +19,31 @@ jobs:
           path: artifact
           run-id: 29463496919
           github-token: ${{ github.token }}
-      - name: Print receipt
-        run: cat artifact/BITNET_EH1_FOUR_ARM_TINY_TRAINER_SMOKE_V1.json
+      - name: Print compact receipt summary
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('artifact/BITNET_EH1_FOUR_ARM_TINY_TRAINER_SMOKE_V1.json')
+          r = json.loads(p.read_text())
+          summary = {
+              'verdict': r['verdict'],
+              'matched_initialization_assertions': r['matched_initialization_assertions'],
+              'arms': [
+                  {
+                      'arm': row['arm'],
+                      'update_count': len(row['updates']),
+                      'all_grad_norms_finite': all(x['grad_norm_preclip_finite'] for x in row['updates']),
+                      'total_nonfinite_gradient_values': sum(x['total_nonfinite_gradient_values'] for x in row['updates']),
+                      'parameter_delta_l2': row['parameter_delta_l2'],
+                      'final_batch_nll': row['final_batch_nll'],
+                      'final_logits_finite': row['final_logits_finite'],
+                  }
+                  for row in r['arm_results']
+              ],
+              'eh1_normal_nll': r['eh1_interventions']['normal_nll'],
+              'eh1_interventions': r['eh1_interventions']['rows'],
+              'claim_ceiling': r['claim_ceiling'],
+          }
+          print(json.dumps(summary, indent=2, sort_keys=True))
+          PY

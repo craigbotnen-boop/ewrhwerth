@@ -1,0 +1,30 @@
+{
+  "campaign": "BITNET_EH1_ARCHITECTURE_SMOKE_V1",
+  "manifest_id": "BITNET_EH1_SEED17_PAID_BLOCK_LAUNCH_V1",
+  "date_utc": "2026-07-16",
+  "status": "LAUNCHED_SEED17_ONLY",
+  "reason": "Cost-limited staged execution authorized by user: run the four matched arms for paired seed 17 before authorizing seeds 29 and 41.",
+  "execution_host": "Hugging Face Jobs",
+  "hardware_flavor": "a100-large",
+  "code_commit": "043564193c267b53b7c0548deac06a14ed1cc0a4",
+  "transformers_revision": "096f25ae1f501a084d8ff2dcaf25fbc2bd60eba4",
+  "scientific_entry_point": "bitnet_eh1/run_architecture_smoke_failclosed.py",
+  "seed": 17,
+  "optimizer_updates_per_run": 1526,
+  "training_tokens_per_run": 50003968,
+  "jobs": [
+    {"arm": "B_full", "seed": 17, "job_id": "6a5876c785d9643ce16d5e38", "launch_status": "SCHEDULING"},
+    {"arm": "B_narrow", "seed": 17, "job_id": "6a5876dbb1669a49bf076e52", "launch_status": "RUNNING"},
+    {"arm": "B_ambient", "seed": 17, "job_id": "6a5876f385d9643ce16d5e3a", "launch_status": "RUNNING"},
+    {"arm": "E_EH1", "seed": 17, "job_id": "6a58770485d9643ce16d5e3c", "launch_status": "RUNNING"}
+  ],
+  "cost_control": {
+    "seeds_29_and_41_launched": false,
+    "estimated_seed17_block_usd": "approximately 14-18 USD based on measured A100 throughput; actual billing may differ",
+    "stop_rule": "Do not launch seeds 29 or 41 until all four seed-17 jobs close successfully and the paired seed-17 block is reviewed."
+  },
+  "frozen_protocol_unchanged": true,
+  "claim_status": "NO_NATIVE_TRAINING_VERDICT_YET; SEED17_BLOCK_RUNNING",
+  "claim_ceiling": "ARCHITECTURE_SMOKE",
+  "historical_qabs_state_unchanged": "BLOCKED_BITNET_2B4T_AGGREGATE_QABS"
+}

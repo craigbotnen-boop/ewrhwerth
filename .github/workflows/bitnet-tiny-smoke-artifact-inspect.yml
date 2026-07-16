@@ -17,11 +17,7 @@ jobs:
         with:
           name: bitnet-eh1-four-arm-tiny-trainer-smoke-receipt
           path: artifact
-          run-id: 29463261373
+          run-id: 29463496919
           github-token: ${{ github.token }}
-      - name: Print receipt and log
-        run: |
-          echo '--- RECEIPT ---'
-          cat artifact/BITNET_EH1_FOUR_ARM_TINY_TRAINER_SMOKE_V1.json
-          echo '--- LOG ---'
-          cat artifact/BITNET_EH1_FOUR_ARM_TINY_TRAINER_SMOKE_V1.log
+      - name: Print receipt
+        run: cat artifact/BITNET_EH1_FOUR_ARM_TINY_TRAINER_SMOKE_V1.json

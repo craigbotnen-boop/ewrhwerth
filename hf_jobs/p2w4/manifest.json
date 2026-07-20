@@ -1,0 +1,16 @@
+{
+  "runner_bytes": 41369,
+  "runner_sha256": "77c51cc743bf4525575c3808bf13a5be0941f9f73d648f99f1bd2721f1b6ff4e",
+  "encoded_bytes": 19070,
+  "parts": [
+    {"name":"chunk_01.txt","bytes":2384,"sha256":"4927b0252f90df8b3c8d44d963033dae54fa7a7f106d0a9e9e22bcfd51f23ee9"},
+    {"name":"chunk_02.txt","bytes":2384,"sha256":"04e9dd796abebe949e2f33dfda101642913e7543e717f1130796f60592319eb2"},
+    {"name":"chunk_03.txt","bytes":2384,"sha256":"803f82a0f672ab0742ddf7b5608cb431d084437e851feda8ccdfd29d5a39539c"},
+    {"name":"chunk_04.txt","bytes":2384,"sha256":"376061932530026b2f7bd611ac33a0a52de1daf917a28b32b31348395f2aadb9"},
+    {"name":"chunk_05.txt","bytes":2384,"sha256":"c8a0d16a40e233a5057d430fc553bd537a1e42ee8ac40dfa5692be9d2e6d54ef"},
+    {"name":"chunk_06.txt","bytes":2384,"sha256":"f037fa9f6e1be802dee233465ba4d9902079922c57f101543d14bad5079b3f45"},
+    {"name":"chunk_07.txt","bytes":2384,"sha256":"17e128726f645af83449421e82a047e7379ca3bcadba1e1a803237953a90eed4"},
+    {"name":"chunk_08.txt","bytes":2382,"sha256":"fdf427c5c51a09ee384d2acd4817e02c2ef6da09fc7db915b168235c3b7bc1f1"}
+  ],
+  "bootstrap_sha256": "19121779ff1e1b4e41d22ebffccade9418540590f20d45bbaf97ab374d18fae9"
+}

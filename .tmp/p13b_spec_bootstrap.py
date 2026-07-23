@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import base64
 import hashlib
-import os
 import runpy
 from pathlib import Path
 
@@ -12,13 +11,19 @@ from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
 BASE = "https://raw.githubusercontent.com/craigbotnen-boop/ewrhwerth/three-paper-suite/.tmp"
 FILES = [
     "p13b_spec_cipher_0.b64",
+    "p13b_spec_cipher_0r.b64",
     "p13b_spec_cipher_1.b64",
+    "p13b_spec_cipher_1r.b64",
     "p13b_spec_cipher_2.b64",
+    "p13b_spec_cipher_2r.b64",
 ]
 EXPECTED_PART_SHA = [
-    "6b25400f329d58ae8b1568f1dd810e19b68dd3b308e28902d6ce4330f9ac373c",
-    "e35a4e93f337961171660b6e198fe1f70afcc3d713b243f4443ef85283b77361",
-    "4b927c8d9f4c2faaf5972c99ef33eb0b45968384ba1f7a749fe746eb30ec1a1b",
+    "81e95229ec89b51a5aa6acdefa9b89ddaf91b01057badc9b8e2559018c0ba58f",
+    "8d1dc5b356bb385840b8291152b79c660efa480666b827a44a4f0756081a61c2",
+    "0aa90d24c935cf9464f961178cb3774e7b01bb5dce53749a35189fd374d88473",
+    "bf61284e485b65fee09fed6a70dac79bb94baa4ae9dac5eb7317a1cf68d428cb",
+    "aba445079adeff35e5ae1be30b053a46143027cdbccbd19370f9d314d3c18b77",
+    "cd8972cad02a86ece7e23d7315d63bb2a32cbfadce92316e63935d5198b716b8",
 ]
 EXPECTED_CIPHERTEXT_SHA = "01a05b6e29550f4f1ac340a17cd13260f7f38966b21f8ac3c27a71727640b5ef"
 EXPECTED_PLAINTEXT_SHA = "c164f560846e698fab2586d2a4df39b455dea74c4be695e9b2322580bbcf4bae"

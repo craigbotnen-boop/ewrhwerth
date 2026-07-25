@@ -32,8 +32,14 @@ PY
   echo "MEMORY=${MEMORY:-UNSET}"
   python --version
   echo "QE_VERSION_WILL_BE_PARSED_FROM_SCF_OUTPUT"
-  phono3py --version
-  phonopy --version
+  python - <<'PY'
+import ase
+import phonopy
+import phono3py
+print(f"ase={ase.__version__}")
+print(f"phonopy={phonopy.__version__}")
+print(f"phono3py={phono3py.__version__}")
+PY
 } | tee reports/software_versions.txt
 
 cat > si_stage0.in <<EOF

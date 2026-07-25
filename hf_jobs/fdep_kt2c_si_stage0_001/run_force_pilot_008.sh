@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 WORK="${1:-/tmp/fdep_kt2c_si_force_pilot_008}"
-mkdir -p "$WORK"
+mkdir -p "$WORK" "$WORK/outputs" "$WORK/reports" "$WORK/qe_tmp"
 cd "$WORK"
 python - <<'PY'
 import urllib.request
@@ -13,7 +13,7 @@ export OMP_NUM_THREADS=1
 MPI_RANKS="${CPU_CORES:-1}"
 run_case(){
   local input="$1"; local output="$2"; local prefix="$3"
-  mkdir -p "$WORK/qe_tmp/$prefix"
+  mkdir -p "$WORK/qe_tmp/$prefix" "$(dirname "$output")" "$WORK/reports"
   echo "START_FORCE_CASE $prefix"
   mpirun --bind-to none -np "$MPI_RANKS" pw.x < "$input" > "$output"
   grep -q 'JOB DONE.' "$output"

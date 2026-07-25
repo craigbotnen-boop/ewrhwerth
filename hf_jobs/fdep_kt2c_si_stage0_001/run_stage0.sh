@@ -9,8 +9,21 @@ PSEUDO_URL="https://pseudopotentials.quantum-espresso.org/upf_files/Si.pbe-n-rrk
 PSEUDO_FILE="Si.pbe-n-rrkjus_psl.1.0.0.UPF"
 PSEUDO_SHA256="669fb75395a9d26973b0ea1ce8223bbcb30d3396c5d48bf5e794d1243c52375a"
 
-curl -fL --retry 3 --retry-delay 2 "$PSEUDO_URL" -o "$PSEUDO_FILE"
-echo "$PSEUDO_SHA256  $PSEUDO_FILE" | sha256sum -c -
+python - <<'PY'
+from pathlib import Path
+import hashlib
+import urllib.request
+
+url = "https://pseudopotentials.quantum-espresso.org/upf_files/Si.pbe-n-rrkjus_psl.1.0.0.UPF"
+path = Path("Si.pbe-n-rrkjus_psl.1.0.0.UPF")
+expected = "669fb75395a9d26973b0ea1ce8223bbcb30d3396c5d48bf5e794d1243c52375a"
+with urllib.request.urlopen(url, timeout=120) as response:
+    path.write_bytes(response.read())
+actual = hashlib.sha256(path.read_bytes()).hexdigest()
+if actual != expected:
+    raise SystemExit(f"PSEUDOPOTENTIAL_HASH_FAIL expected={expected} actual={actual}")
+print(f"PSEUDOPOTENTIAL_HASH_PASS {actual}")
+PY
 
 {
   echo "JOB_ID=${JOB_ID:-UNSET}"

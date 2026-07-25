@@ -72,7 +72,7 @@ K_POINTS automatic
 8 8 8 0 0 0
 EOF
 
-pw.x -in si_stage0.in > si_stage0.out
+pw.x < si_stage0.in > si_stage0.out
 grep -q "JOB DONE." si_stage0.out
 
 python - <<'PY'

@@ -78,7 +78,9 @@ K_POINTS automatic
 8 8 8 0 0 0
 EOF
 
-pw.x < si_stage0.in > si_stage0.out
+export OMP_NUM_THREADS=1
+MPI_RANKS="${CPU_CORES:-1}"
+mpirun --bind-to none -np "$MPI_RANKS" pw.x < si_stage0.in | tee si_stage0.out
 grep -q "JOB DONE." si_stage0.out
 
 python - <<'PY'
@@ -101,6 +103,7 @@ result = {
     "job_id": os.environ.get("JOB_ID"),
     "status": "PASS",
     "qe_version": qe_version[0] if qe_version else None,
+    "mpi_ranks": int(os.environ.get("CPU_CORES", "1")),
     "pseudopotential_sha256": hashlib.sha256((root / "Si.pbe-n-rrkjus_psl.1.0.0.UPF").read_bytes()).hexdigest(),
     "final_energy_Ry": float(energy[-1]),
     "final_total_force_Ry_per_Bohr": float(forces[-1]) if forces else None,

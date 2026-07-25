@@ -31,7 +31,7 @@ PY
   echo "CPU_CORES=${CPU_CORES:-UNSET}"
   echo "MEMORY=${MEMORY:-UNSET}"
   python --version
-  pw.x --version 2>&1 | head -40
+  echo "QE_VERSION_WILL_BE_PARSED_FROM_SCF_OUTPUT"
   phono3py --version
   phonopy --version
 } | tee reports/software_versions.txt
@@ -87,12 +87,14 @@ text = (root / "si_stage0.out").read_text(errors="replace")
 energy = re.findall(r"!\s+total energy\s+=\s+([\-0-9.Ee+]+)\s+Ry", text)
 forces = re.findall(r"Total force\s+=\s+([\-0-9.Ee+]+)", text)
 iterations = re.findall(r"iteration #\s*([0-9]+)", text)
+qe_version = re.findall(r"Program PWSCF v\.([^\s]+)", text)
 if "JOB DONE." not in text or not energy:
     raise SystemExit("HF_STAGE0_SCF_FAIL")
 result = {
     "document_code": "FDEP_KT2C_HF_STAGE0_EXECUTION_001",
     "job_id": os.environ.get("JOB_ID"),
     "status": "PASS",
+    "qe_version": qe_version[0] if qe_version else None,
     "pseudopotential_sha256": hashlib.sha256((root / "Si.pbe-n-rrkjus_psl.1.0.0.UPF").read_bytes()).hexdigest(),
     "final_energy_Ry": float(energy[-1]),
     "final_total_force_Ry_per_Bohr": float(forces[-1]) if forces else None,

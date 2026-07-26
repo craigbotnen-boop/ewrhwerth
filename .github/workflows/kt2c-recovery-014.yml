@@ -1,0 +1,72 @@
+name: KT2C Recovery 014
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'hf_jobs/fdep_kt2c_si_stage0_001/recovery_014/TRIGGER'
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  recover-build-bte:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - name: Checkout frozen recovery sources
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install phono3py recovery stack
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install phono3py==4.3.3 h5py huggingface_hub
+
+      - name: Recover forces and construct FC2 FC3
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+          import importlib.util
+          from pathlib import Path
+
+          source = Path('hf_jobs/fdep_kt2c_si_stage0_001/recovery_014/run_recovery_build_bte_014.py').resolve()
+          patched = Path('/tmp/run_recovery_build_bte_014_actions.py')
+          text = source.read_text()
+          text = text.replace(
+              'forces_fc3_filename=(str(ROOT / "FORCES_FC3"), str(ROOT / "phono3py_disp.yaml")),',
+              'forces_fc3_filename=str(ROOT / "FORCES_FC3"),',
+          )
+          text = text.replace(
+              'forces_fc2_filename=(str(ROOT / "FORCES_FC2"), str(ROOT / "phono3py_disp.yaml")),',
+              'forces_fc2_filename=str(ROOT / "FORCES_FC2"),',
+          )
+          patched.write_text(text)
+
+          spec = importlib.util.spec_from_file_location('kt2c_recovery_014', patched)
+          if spec is None or spec.loader is None:
+              raise RuntimeError('RECOVERY_IMPORT_SPEC_FAIL')
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          module.RAW_BASE = Path('hf_jobs/fdep_kt2c_si_stage0_001/recovery_014').resolve().as_uri()
+          module.upload_artifacts = lambda: 'GITHUB_ACTIONS_ARTIFACT'
+          raise SystemExit(module.main())
+          PY
+
+      - name: Upload complete recovery packet
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: FDEP_KT2C_SI_RECOVERY_PACKET_014
+          path: /tmp/fdep_kt2c_recovery_014/artifacts
+          if-no-files-found: error
+          retention-days: 90

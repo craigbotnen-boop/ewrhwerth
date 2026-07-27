@@ -23,12 +23,13 @@ grep -q 'JOB DONE.' outputs/fc2_00001.out
 
 python - <<'PY'
 from pathlib import Path
-import hashlib, json, os, re
+import hashlib, json, re
 import numpy as np
 from phonopy.interface.qe import parse_set_of_forces
 
 inp = Path('force_inputs_fc2/fc2_00001.in')
 out = Path('outputs/fc2_00001.out')
+runner = Path('/tmp/run_fc2_official_parser_015c.sh')
 text = out.read_text(errors='replace')
 energies = re.findall(r'!\s+total energy\s+=\s+([\-0-9.Ee+]+)\s+Ry', text)
 totals = re.findall(r'Total force\s+=\s+([\-0-9.Ee+]+)', text)
@@ -66,7 +67,8 @@ receipt = {
     'output_sha256': hashlib.sha256(out.read_bytes()).hexdigest(),
     'provenance': {
         'phono3py_disp_yaml_sha256': hashlib.sha256(Path('phono3py_disp.yaml').read_bytes()).hexdigest(),
-        'runner_commit': 'REPLACED_AT_LAUNCH'
+        'runner_script_sha256': hashlib.sha256(runner.read_bytes()).hexdigest(),
+        'displacement_runner_commit': '05521fdc3fcbe4b8b0aa104421061bc9f2750a7b'
     },
     'claim_boundary': {
         'official_fc2_force_extraction': 'PASS',

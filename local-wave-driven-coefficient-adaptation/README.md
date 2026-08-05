@@ -1,18 +1,20 @@
 # Local Wave-Driven Coefficient Adaptation on Metric Networks
 
-Reproducibility materials for the manuscript:
+Reproducibility materials for:
 
-> Craig Botnen, *Local Wave-Driven Coefficient Adaptation on Metric Networks: Short-Time Well-Posedness and Finite Propagation*.
+> Craig W. Botnen, *Local Wave-Driven Coefficient Adaptation on Metric Networks: Short-Time Well-Posedness and Finite Propagation*.
 
 ## Contents
 
 - `run_higher_order_solver.py`: second-order characteristic / SSP-RK3 numerical experiment.
-- `summary.json`: controlling numerical parameters and summary results.
+- `summary.json`: numerical parameters and summary results.
 - `grid_runs.csv`: per-grid timing, leakage, and coefficient-change diagnostics.
 - `convergence.csv`: nested-grid relative differences and observed orders.
 - `requirements.txt`: tested Python environment.
+- `NUMERICAL_METHOD_RELEASE_013.md`: detailed discretization and diagnostic definitions.
+- `PEER_REVIEW_RESPONSE_013.md`: record of the theorem-level revision that expanded the differentiated vertex estimates.
 
-The full archived submission supplement also contains the finest-grid profiles and sensor-history table.
+The archived submission supplement also contains finest-grid profiles, sensor histories, figures, and checksums.
 
 ## Reproduce
 
@@ -40,8 +42,11 @@ for both characteristic amplitude and coefficient perturbation. These times are 
 - second-order one-sided characteristic differences;
 - three-stage SSP Runge-Kutta time stepping;
 - grids `h = 0.04, 0.02, 0.01, 0.005, 0.0025`;
-- uniform speed ceiling `sqrt(a_max) = 1.3`.
+- nominal CFL number `0.35`;
+- uniform speed ceiling `sqrt(a_max) = 1.3`;
+- coefficient projection to `[a_min,a_max]` at each Runge-Kutta stage;
+- vertex scattering imposed at every Runge-Kutta stage.
 
 ## Version
 
-These files correspond to Submission Release 012.
+These materials correspond to the numerical content used in the journal-targeted Submission Release 015. The mathematical proof is contained in the manuscript; this repository supports only the numerical illustration and reproducibility claims.

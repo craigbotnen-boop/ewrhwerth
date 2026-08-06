@@ -4,18 +4,26 @@
     "spatial_method": "second-order one-sided characteristic differences",
     "time_method": "three-stage SSP Runge-Kutta",
     "variables": "left/right characteristics plus local coefficient",
-    "grid_sizes": [0.04, 0.02, 0.01, 0.005, 0.0025],
-    "support_threshold": 1e-10
+    "grid_sizes": [
+      0.04,
+      0.02,
+      0.01,
+      0.005,
+      0.0025
+    ],
+    "support_threshold": 1e-10,
+    "external_boundary": "reflecting p=0, implemented as r=-ell",
+    "coefficient_projection": "clip to [a_min,a_max] at every SSP-RK stage"
   },
   "finest_pair": {
     "coarse_h": 0.005,
     "fine_h": 0.0025,
-    "p_relative_error": 0.07923542323376584,
-    "s_relative_error": 0.07907036570163566,
-    "delta_a_relative_error": 0.02373201358053269,
-    "p_observed_order": 1.9500314353654022,
-    "s_observed_order": 1.9485385710059886,
-    "delta_a_observed_order": 2.758016687203769
+    "p_relative_error": 0.07923501420377196,
+    "s_relative_error": 0.07906990790503443,
+    "delta_a_relative_error": 0.023732010898361838,
+    "p_observed_order": 1.9500313869237356,
+    "s_observed_order": 1.9485385480762991,
+    "delta_a_observed_order": 2.7580166929310796
   },
   "finest_run": {
     "h": 0.0025,
@@ -29,6 +37,15 @@
     "first_sensor_structure_above_1e_10": 4.588773724592812,
     "uniform_vertex_lower_bound": 3.230769230769231,
     "uniform_sensor_lower_bound": 4.0,
-    "maximum_delta_a": 0.0657398136711238
-  }
+    "maximum_delta_a": 0.0657398136711238,
+    "maximum_projection_correction": 0.0,
+    "maximum_projection_correction_all_grids": 0.0
+  },
+  "interpretation": [
+    "The finest-pair wave convergence is approximately second order.",
+    "The coefficient perturbation converges faster than second order on the finest pair, but this should not be promoted as a general order theorem.",
+    "The higher-order stencil is not exactly support preserving: it produces small pre-cone numerical leakage.",
+    "The pre-cone wave leakage decreases rapidly under refinement and the induced structural leakage is near machine precision on the finest grid.",
+    "The numerical experiment supports the continuum model but does not prove the common-cone theorem."
+  ]
 }

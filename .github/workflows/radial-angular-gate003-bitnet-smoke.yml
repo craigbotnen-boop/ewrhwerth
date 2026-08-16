@@ -32,6 +32,7 @@ jobs:
           s=s.replace('trust_remote_code=True', 'trust_remote_code=False')
           s=s.replace('if not torch.cuda.is_available():\n    raise RuntimeError("Gate 003 requires CUDA")\ndevice = torch.device("cuda")\nprint("CUDA", json.dumps({"name": torch.cuda.get_device_name(0), "torch": torch.__version__}), flush=True)', 'device = torch.device("cpu")\nprint("DEVICE", json.dumps({"name": "cpu", "torch": torch.__version__}), flush=True)')
           s=s.replace('device_map={"": 0}', 'device_map={"": "cpu"}')
+          s=s.replace('"quantization_config": getattr(model.config, "quantization_config", None)', '"quantization_config": str(getattr(model.config, "quantization_config", None))')
           Path('/tmp/gate003_smoke.py').write_text(s)
           PY
       - name: Run Gate 003 tiny CPU smoke

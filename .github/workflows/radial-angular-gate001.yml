@@ -1,0 +1,30 @@
+name: Radial Angular Gate 001
+
+on:
+  push:
+    branches:
+      - bitnet-radial-angular-pilot-20260816
+    paths:
+      - experiments/radial_angular_gate001.py
+      - .github/workflows/radial-angular-gate001.yml
+  workflow_dispatch:
+
+jobs:
+  gate001:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install 'torch>=2.4' 'transformers>=4.46,<5' 'datasets>=3,<5' sentencepiece
+      - name: Run Gate 001A
+        env:
+          TOKENIZERS_PARALLELISM: 'false'
+          HF_HUB_DISABLE_TELEMETRY: '1'
+        run: python experiments/radial_angular_gate001.py

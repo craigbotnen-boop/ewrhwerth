@@ -1,0 +1,75 @@
+{
+  "lane": "BITNET_PERSISTENT_RADIAL_ANGULAR_001",
+  "date": "2026-08-16",
+  "status": "MIXED_SIGNAL_A4_PASS_SUB4_FAIL",
+  "scope": "Activation-geometry mechanism screen on HuggingFaceTB/SmolLM2-135M; not a BitNet-weight confirmation.",
+  "protocol": {
+    "model": "HuggingFaceTB/SmolLM2-135M",
+    "dataset": "Salesforce/wikitext wikitext-2-raw-v1 test",
+    "sequence_length": 128,
+    "calibration_sequences": 2,
+    "evaluation_sequences": 4,
+    "evaluation_prediction_tokens": 508,
+    "seed": 260816,
+    "hidden_size": 576,
+    "layers": 30,
+    "hadamard_block": 64,
+    "angular_clip_quantile": 0.995
+  },
+  "gate001A_fixed_grid": {
+    "rule": "angular A2 + true radius NLL <= raw dynamic A4 NLL",
+    "pass": false,
+    "native_nll": 3.4823315739631653,
+    "raw_dynamic_A4_nll": 10.909729719161987,
+    "angular_A4_radius_true_nll": 13.139026403427124,
+    "angular_A3_radius_true_nll": 13.29264211654663,
+    "angular_A2_radius_true_nll": 17.459258556365967,
+    "angular_A1_radius_true_nll": 19.62226915359497
+  },
+  "gate001B_hadamard_direction": {
+    "rule": "Hadamard angular A2 + true radius NLL <= raw dynamic A4 NLL",
+    "pass": false,
+    "native_nll": 3.4823241233825684,
+    "raw_dynamic_A4_nll": 10.939563512802124,
+    "hadamard_angular_A4_radius_true_nll": 5.10389769077301,
+    "hadamard_angular_A3_radius_true_nll": 11.385465621948242,
+    "hadamard_angular_A2_radius_true_nll": 15.847136497497559,
+    "hadamard_angular_A1_radius_true_nll": 16.37423038482666,
+    "hadamard_angular_A2_radius_shift1_nll": 15.569225788116455,
+    "hadamard_angular_A2_radius_constant_nll": 15.548729419708252
+  },
+  "gate001C_radius_precision_A4": {
+    "rule": "Hadamard angular A4 + 4-bit log-radius beats raw dynamic A4 and is within +0.25 NLL of FP32-radius Hadamard A4",
+    "pass": true,
+    "native_nll": 3.4823241233825684,
+    "raw_dynamic_A4_nll": 10.939563512802124,
+    "radius_fp32_nll": 5.10389769077301,
+    "radius_fp16_nll": 5.1269224882125854,
+    "radius_log8_nll": 5.233442664146423,
+    "radius_log6_nll": 4.901384234428406,
+    "radius_log4_nll": 4.892277836799622,
+    "radius_log2_nll": 5.885913133621216,
+    "radius_shift1_nll": 8.038965344429016,
+    "radius_constant_nll": 8.012354135513306,
+    "note": "The lower NLL for 4/6-bit log radius versus FP32 radius may reflect clipping/regularization and must not be interpreted as evidence that quantization intrinsically improves the model."
+  },
+  "gate001D_matched_hadamard_control": {
+    "rule": "Hadamard angular A4 + 4-bit log-radius NLL < matched Hadamard per-token absmax A4 NLL",
+    "pass": true,
+    "native": {"nll": 3.4823241233825684, "ppl": 32.53525020928504},
+    "raw_dynamic_A4_absmax": {"nll": 10.939563512802124, "ppl": 56362.73616347208},
+    "hadamard_dynamic_A4_absmax": {"nll": 5.827480316162109, "ppl": 339.50216233784636},
+    "hadamard_dynamic_A4_absmean_approx": {"nll": 15.926694631576538, "ppl": 8258013.593904391},
+    "hadamard_angular_A4_radius_fp32": {"nll": 5.10389769077301, "ppl": 164.66246150472193},
+    "hadamard_angular_A4_radius_log4": {"nll": 4.892277836799622, "ppl": 133.25676577443664},
+    "hadamard_angular_A4_radius_shift1": {"nll": 8.038965344429016, "ppl": 3099.404714425863},
+    "hadamard_angular_A4_radius_constant": {"nll": 8.012354135513306, "ppl": 3018.013569518379},
+    "delta_nll_log4_radius_vs_matched_hadamard_absmax": -0.9352024793624878
+  },
+  "verdict": {
+    "sub4_claim": "FAIL at A3/A2/A1 under this construction; A2 does not approach matched A4.",
+    "a4_radial_claim": "PROMISING SCREEN: with matched Hadamard mixing, fixed-grid angular A4 plus a separately coded 4-bit log-radius outperformed the matched Hadamard per-token absmax A4 baseline on this small pilot.",
+    "radius_control": "At A4, true/token-specific radius materially outperformed shifted or constant radius controls; at A2 it did not, indicating directional quantization error dominates in the extreme regime.",
+    "next_gate": "Replicate A4 result on a second RMSNorm model and a much larger frozen token sample, then run a BitNet-weight model. Treat A3/A2 as optimization research, not a demonstrated result."
+  }
+}

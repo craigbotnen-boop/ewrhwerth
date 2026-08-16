@@ -1,0 +1,55 @@
+{
+  "lane": "BITNET_PERSISTENT_RADIAL_ANGULAR_001",
+  "date": "2026-08-16",
+  "status": "GATE003_NATIVE_BITNET_PASS_PENDING_RMS_RESTORED_HOSTILE_CONTROL",
+  "scope": "Official microsoft/bitnet-b1.58-2B-4T packed native BitNet checkpoint, evaluated through Transformers 4.57.6 native BitNet support. Post-decoder-layer residual-stream A4 geometry intervention only; this does not replace the model's internal BitLinear W1.58A8 quantization.",
+  "protocol": {
+    "model": "microsoft/bitnet-b1.58-2B-4T",
+    "revision": "main",
+    "dataset": "Salesforce/wikitext wikitext-2-raw-v1 test",
+    "sequence_length": 128,
+    "calibration_sequences": 2,
+    "calibration_tokens": 256,
+    "evaluation_sequences": 8,
+    "evaluation_prediction_tokens": 1016,
+    "seed": 26081603,
+    "hidden_size": 2560,
+    "layers": 30,
+    "rms_norm_eps": 1e-5,
+    "hadamard_block": 64,
+    "angular_clip_quantile": 0.995,
+    "runtime": "GitHub Actions ubuntu-24.04 CPU; torch 2.13.0+cpu; transformers 4.57.6"
+  },
+  "preregistered_rules": {
+    "replication": "angularH A4 + true token radius NLL < matched Hadamard per-token absmax A4 NLL",
+    "radial_specificity": "true-radius NLL + 0.25 <= min(shifted-radius NLL, constant-radius NLL)",
+    "overall": "both rules pass"
+  },
+  "results": {
+    "native": {"nll": 3.6938689053058624, "ppl": 40.20007676924496},
+    "hadamard_dynamic_A4_absmax": {"nll": 4.749722987413406, "ppl": 115.55227065988802},
+    "angularH_A4_radius_true": {"nll": 4.2344516813755035, "ppl": 69.02382130874363},
+    "angularH_A4_radius_shift1": {"nll": 5.347020745277405, "ppl": 209.98177584839354},
+    "angularH_A4_radius_constant": {"nll": 4.61208301782608, "ppl": 100.6936780612812}
+  },
+  "effects": {
+    "delta_nll_true_vs_matched_hadamard_A4": -0.5152713060379028,
+    "delta_nll_true_vs_shifted_radius": -1.1125690639019012,
+    "delta_nll_true_vs_constant_radius": -0.3776313364505768
+  },
+  "gate": {
+    "replicate_pass": true,
+    "radial_specificity_pass": true,
+    "gate_pass": true
+  },
+  "interpretation": {
+    "supported": "On this frozen 1016-token native BitNet screen, preserving the correct token-specific residual RMS while quantizing the normalized/Hadamard-mixed direction to a fixed A4 grid materially outperformed a matched Hadamard per-token dynamic A4 baseline, and it outperformed shifted and constant-radius controls.",
+    "not_yet_supported": "This does not yet show that a new fixed angular code is necessary, that a low-bit radius codec works, that A3/A2 is viable, or that the effect survives a baseline that performs ordinary Hadamard dynamic A4 and then restores the exact pre-quantization RMS.",
+    "next_hostile_control": "Compare Hadamard dynamic A4 with exact RMS restoration against fixed-grid angular A4 with exact radius under the same frozen protocol. If RMS-restored dynamic A4 closes the gap, the contribution is radial preservation rather than the fixed angular code."
+  },
+  "provenance": {
+    "workflow_run_id": 31972185006,
+    "workflow_job_id": 95226196698,
+    "workflow_commit": "81375f9d738cad8e2f2f74803a3030bf60f62180"
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "lane": "BITNET_PERSISTENT_RADIAL_ANGULAR_001",
+  "gate": "GATE002_QWEN_REPLICATION",
+  "date": "2026-08-16",
+  "status": "PARTIAL_REPLICATION_EXACT_RADIUS_PASS_LOG4_FAIL",
+  "scope": "Cross-model RMSNorm activation-geometry replication on Qwen/Qwen2.5-0.5B; not a BitNet-weight confirmation.",
+  "protocol": {
+    "model": "Qwen/Qwen2.5-0.5B",
+    "dataset": "Salesforce/wikitext wikitext-2-raw-v1 test",
+    "sequence_length": 256,
+    "calibration_sequences": 4,
+    "calibration_tokens": 1024,
+    "evaluation_sequences": 16,
+    "evaluation_prediction_tokens": 4080,
+    "seed": 26081602,
+    "layers": 24,
+    "hidden_size": 896,
+    "rms_norm_eps": 1e-6,
+    "hadamard_block": 64,
+    "angular_clip_quantile": 0.995,
+    "radius_specificity_margin_nll": 0.25
+  },
+  "preregistered_rules": {
+    "replication": "angularH A4 + 4-bit log-radius NLL < matched Hadamard per-token absmax A4 NLL",
+    "radial_specificity": "angularH A4 + 4-bit log-radius NLL + 0.25 <= min(shifted-radius NLL, constant-radius NLL)",
+    "overall": "both replication and radial-specificity rules pass"
+  },
+  "results": {
+    "native": {"nll": 3.1799582093954086, "ppl": 24.045748644693084},
+    "hadamard_dynamic_A4_absmax": {"nll": 3.966256931424141, "ppl": 52.78657681614655},
+    "angularH_A4_radius_fp32": {"nll": 3.733208566904068, "ppl": 41.8130531418744},
+    "angularH_A4_radius_log4": {"nll": 6.254735708236694, "ppl": 520.4718001684975},
+    "angularH_A4_radius_shift1": {"nll": 7.473141044378281, "ppl": 1760.1266477256056},
+    "angularH_A4_radius_constant": {"nll": 7.283769369125366, "ppl": 1456.4676554643831}
+  },
+  "effects": {
+    "fp32_radius_vs_matched_hadamard_A4_delta_nll": -0.23304836452007294,
+    "log4_radius_vs_matched_hadamard_A4_delta_nll": 2.2884787768125534,
+    "log4_radius_vs_shifted_radius_delta_nll": -1.2184053361415863,
+    "log4_radius_vs_constant_radius_delta_nll": -1.0290336608886719
+  },
+  "calibration": {
+    "angular_clip_min": 2.8286893367767334,
+    "angular_clip_median": 2.9769656658172607,
+    "angular_clip_max": 3.6476633548736572,
+    "median_log_radius_range_width": 0.34851211309432983
+  },
+  "gates": {
+    "replicate_pass": false,
+    "radial_specificity_pass": true,
+    "overall_gate_pass": false
+  },
+  "verdict": {
+    "cross_model_geometry": "SUPPORTED IN WEAKER FORM: with the same Hadamard mixing, fixed-grid angular A4 plus the exact token-specific FP32 radius outperformed the matched Hadamard per-token dynamic A4 baseline by 0.2330 NLL on Qwen2.5-0.5B.",
+    "low_bit_radius_codec": "FAILED TO REPLICATE: the 4-bit calibrated log-radius code was 2.2885 NLL worse than the matched Hadamard A4 baseline on Qwen2.5-0.5B.",
+    "radius_specificity": "SUPPORTED: even the imperfect 4-bit token-specific radius was more than 1.0 NLL better than shifted or constant radius controls, so the scalar radius remains functionally informative.",
+    "advance_to_bitnet": "HOLD. Do not promote the low-bit scalar-channel construction to the BitNet-weight gate yet. First determine the precision/codebook needed for the Qwen radial state (fp16/log8/log6/log5/log4 and calibration-range controls).",
+    "novelty_boundary": "The data now support an architecture-sensitive separable radial state, not a universal 4-bit scalar codec."
+  }
+}

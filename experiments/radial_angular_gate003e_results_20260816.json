@@ -1,0 +1,40 @@
+{
+  "lane": "BITNET_PERSISTENT_RADIAL_ANGULAR_001",
+  "date": "2026-08-16",
+  "status": "GATE003E_FIXED_ANGULAR_INDEPENDENT_VALUE_PASS",
+  "scope": "Native microsoft/bitnet-b1.58-2B-4T hostile control on the same frozen 1016-token protocol. Tests whether exact RMS restoration alone explains the Gate003 advantage.",
+  "protocol": {
+    "model": "microsoft/bitnet-b1.58-2B-4T",
+    "sequence_length": 128,
+    "calibration_tokens": 256,
+    "evaluation_prediction_tokens": 1016,
+    "seed": 26081603,
+    "hadamard_block": 64,
+    "angular_clip_quantile": 0.995
+  },
+  "frozen_rule": {
+    "radial_restoration_explains_gap": "abs(delta NLL angular-minus-restored) <= 0.10",
+    "fixed_angular_adds_independent_value": "angular NLL + 0.10 < restored-dynamic NLL",
+    "dynamic_angular_preferred": "restored-dynamic NLL + 0.10 < angular NLL"
+  },
+  "results": {
+    "angularH_A4_radius_true": {"nll": 4.213370382785797, "ppl": 67.5839401302032},
+    "hadamard_dynamic_A4_absmax_radius_restored": {"nll": 4.539940625429153, "ppl": 93.68523743356728}
+  },
+  "effects": {
+    "delta_nll_angular_minus_restored": -0.3265702426433563,
+    "approx_gain_from_rms_restoration_vs_gate003_unrestored_dynamic": -0.209782361984253,
+    "note": "The latter uses the Gate003 matched dynamic A4 NLL 4.749722987413406 as reference; separate-run low-level differences mean it is descriptive rather than a paired single-run estimate."
+  },
+  "verdict": "FIXED_ANGULAR_GRID_ADDS_INDEPENDENT_VALUE",
+  "interpretation": {
+    "radial_effect": "Exact RMS restoration improves the ordinary dynamic A4 family, so preserving radius is itself useful.",
+    "angular_effect": "Exact RMS restoration does not close the gap. Fixed/shared angular coding of normalized direction remains 0.32657 NLL better under the hostile-control rule.",
+    "next_gate": "Find the minimum radial precision that preserves the A4 advantage on native BitNet, preferably with cascaded calibration on quantized upstream trajectories; do not return to A3/A2 until the radial codec is controlled."
+  },
+  "provenance": {
+    "workflow_run_id": 31973395682,
+    "workflow_job_id": 95229197512,
+    "workflow_commit": "ab7258d997289306c3a62920962ecf73dfcad839"
+  }
+}

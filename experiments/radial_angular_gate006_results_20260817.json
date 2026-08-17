@@ -1,0 +1,11 @@
+{
+  "lane": "BITNET_RESIDUAL_SHAPE_GAIN_RATE_DISTORTION",
+  "date": "2026-08-17",
+  "status": "GATE006_ROBUST_A4_REPLICATION_PASS",
+  "model": "microsoft/bitnet-b1.58-2B-4T",
+  "protocol": {"calibration_tokens": 1024, "calibration_transfer": "WikiText validation frozen and used unchanged for C4", "evaluation_prediction_tokens_per_corpus": 4064, "radial_bits": 4, "nominal_bits_per_element": 4.0015625, "paired_bootstrap_resamples": 2000},
+  "wikitext2_test": {"dynamic_A4_nll": 4.8992728888988495, "angular_A4_exact_radius_nll": 4.132524378597736, "angular_A4_log4_radius_nll": 4.1521482691168785, "angular_A4_shifted_radius_nll": 5.4661770313978195, "delta_log4_vs_dynamic": -0.747124619781971, "paired_bootstrap_95ci": [-0.8150653317570686, -0.6789622828364372], "shift_penalty_nll": 1.314028762280941, "codec_delta_vs_exact_nll": 0.01962389051914215, "pass": true},
+  "c4_realnewslike_validation": {"dynamic_A4_nll": 4.447894737124443, "angular_A4_exact_radius_nll": 3.4719289243221283, "angular_A4_log4_radius_nll": 3.4902998358011246, "angular_A4_shifted_radius_nll": 4.675490617752075, "delta_log4_vs_dynamic": -0.9575949013233185, "paired_bootstrap_95ci": [-1.068841114640236, -0.8506716787815094], "shift_penalty_nll": 1.1851907819509506, "codec_delta_vs_exact_nll": 0.018370911478996277, "pass": true},
+  "interpretation": "A4 fixed/shared angular coding plus a 4-bit token-radius side channel robustly beats matched Hadamard dynamic A4 on two corpora, including calibration transfer from WikiText to C4. A3/A2 remain closed; no speed or energy claim is made.",
+  "provenance": {"workflow_run_id": 32012830824, "workflow_job_id": 95335902323, "workflow_commit": "5b1b0bf59d5ef23964729d24e736df42376f062f", "artifact_id": 9287046310, "artifact_sha256": "c1bee2bc0f1e55fe000c569b71e73118d5815c6e14433910cb2ccfc64957395d"}
+}

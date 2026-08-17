@@ -1,0 +1,57 @@
+{
+  "lane": "BITNET_RESIDUAL_SHAPE_GAIN_RATE_DISTORTION",
+  "date": "2026-08-17",
+  "status": "PREREGISTERED_GATE006_A4_REPLICATION",
+  "purpose": "Replicate the surviving native-BitNet A4 residual shape-gain result on substantially more frozen tokens and a second corpus without reopening the failed sub-4-bit lane.",
+  "model": "microsoft/bitnet-b1.58-2B-4T",
+  "calibration": {
+    "dataset": "Salesforce/wikitext",
+    "subset": "wikitext-2-raw-v1",
+    "split": "validation",
+    "tokens": 1024,
+    "sequence_length": 128,
+    "policy": "one WikiText validation calibration is frozen and transferred unchanged to both evaluation corpora"
+  },
+  "evaluation": {
+    "sequence_length": 128,
+    "sequences_per_corpus": 32,
+    "prediction_tokens_per_corpus": 4064,
+    "corpora": [
+      "Salesforce/wikitext wikitext-2-raw-v1 test",
+      "allenai/c4 realnewslike validation streaming"
+    ],
+    "paired_bootstrap_resamples": 2000,
+    "bootstrap_seed": 260817061
+  },
+  "representation": {
+    "hadamard_block": 64,
+    "angular_bits": 4,
+    "radial_bits": 4,
+    "radial_overhead_bits_per_element": 0.0015625,
+    "total_nominal_bits_per_element": 4.0015625,
+    "angular_clip_quantile": 0.995,
+    "radial_log_quantiles": [0.005, 0.995],
+    "radial_calibration": "cascaded on the frozen WikiText validation calibration set"
+  },
+  "conditions": [
+    "native unmodified model",
+    "matched Hadamard dynamic A4 absmax",
+    "fixed angular A4 + exact radius",
+    "fixed angular A4 + cascaded 4-bit log-radius",
+    "fixed angular A4 + cascaded 4-bit log-radius with token radius circularly shifted within sequence"
+  ],
+  "primary_rules": {
+    "replication_per_corpus": "log4-radius A4 NLL < matched dynamic-A4 NLL and paired-bootstrap 95% CI upper bound for delta(log4-dynamic) < 0",
+    "radius_specificity_per_corpus": "shifted-radius NLL - log4-radius NLL >= 0.25",
+    "codec_fidelity_per_corpus": "log4-radius NLL <= exact-radius NLL + 0.10",
+    "robust_replication_pass": "all three per-corpus rules pass on both corpora",
+    "partial_replication": "primary replication passes on only one corpus or hostile controls are mixed",
+    "stop": "if primary replication fails on both corpora, park the A4 claim pending redesign"
+  },
+  "prohibitions": [
+    "Do not reopen A3/A2/A1 in Gate006.",
+    "Do not recalibrate on C4.",
+    "Do not tune thresholds after seeing evaluation results.",
+    "Do not infer kernel speed or energy savings from this functional Transformers experiment."
+  ]
+}

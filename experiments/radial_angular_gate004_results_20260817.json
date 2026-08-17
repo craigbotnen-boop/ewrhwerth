@@ -1,0 +1,49 @@
+{
+  "lane": "BITNET_RESIDUAL_SHAPE_GAIN_RATE_DISTORTION",
+  "date": "2026-08-17",
+  "status": "GATE004_PASS_MIN_CASCADED_RADIAL_BITS_4",
+  "scope": "Official microsoft/bitnet-b1.58-2B-4T checkpoint; post-decoder residual-stream A4 direction plus separately coded token RMS. Same frozen WikiText-2 protocol as prior native-BitNet gates.",
+  "protocol": {
+    "model": "microsoft/bitnet-b1.58-2B-4T",
+    "sequence_length": 128,
+    "calibration_tokens": 256,
+    "evaluation_prediction_tokens": 1016,
+    "seed": 26081604,
+    "radial_bits_tested": [8, 6, 5, 4],
+    "radius_range_quantiles": [0.005, 0.995],
+    "tolerance_nll": 0.10,
+    "gate_rule": "codec NLL <= exact-radius NLL + 0.10 and codec NLL < same-run matched Hadamard dynamic A4"
+  },
+  "reference_results": {
+    "hadamard_dynamic_A4_absmax": {"nll": 4.749723434448242, "ppl": 115.55232231578991},
+    "angularH_A4_radius_exact": {"nll": 4.189194202423096, "ppl": 65.96961138429785}
+  },
+  "radial_codec_results": {
+    "log8_static": {"nll": 4.160899877548218, "ppl": 64.12920507429374, "pass": true},
+    "log8_cascaded": {"nll": 4.195195198059082, "ppl": 66.36668496110815, "pass": true},
+    "log6_static": {"nll": 4.16063666343689, "ppl": 64.11232758386419, "pass": true},
+    "log6_cascaded": {"nll": 4.148884057998657, "ppl": 63.36325111621144, "pass": true},
+    "log5_static": {"nll": 4.094261169433594, "ppl": 59.9949966413145, "pass": true},
+    "log5_cascaded": {"nll": 4.167607307434082, "ppl": 64.56079302584796, "pass": true},
+    "log4_static": {"nll": 4.136253356933594, "ppl": 62.567961935785426, "pass": true},
+    "log4_cascaded": {"nll": 4.148909568786621, "ppl": 63.36486758329395, "pass": true}
+  },
+  "selected_codec_for_preregistered_gate005": {
+    "type": "cascaded log-uniform token RMS codec",
+    "bits": 4,
+    "nll": 4.148909568786621,
+    "delta_nll_vs_exact": -0.04028463363647461,
+    "delta_nll_vs_dynamic_A4": -0.6008138656616211,
+    "radial_overhead_bits_per_activation_element": 0.0015625
+  },
+  "interpretation": {
+    "supported": "A 4-bit per-token radial codec preserves the A4 radial/angular advantage under the frozen gate and is the minimum passing cascaded precision among tested values.",
+    "caution": "Several quantized-radius conditions slightly outperform exact-radius reconstruction on this small frozen evaluation. Treat that as a clipping/calibration regularization effect until replicated; do not claim that lower-precision radius is intrinsically superior to exact radius.",
+    "authorization": "Gate005 entry condition is satisfied. Proceed exactly under the preregistered A3/A2 scalar-versus-grouped-VQ protocol; do not reopen A1 unless A2 passes."
+  },
+  "provenance": {
+    "workflow_run_id": 31985981351,
+    "workflow_job_id": 95260988117,
+    "workflow_commit": "af369a6569c2d330f8fa62935e5cf7ed6b7b83de"
+  }
+}

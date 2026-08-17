@@ -1,0 +1,56 @@
+{
+  "lane": "BITNET_RESIDUAL_SHAPE_GAIN_RATE_DISTORTION",
+  "date": "2026-08-17",
+  "status": "GATE005_SUB4_STOP__A4_RESULT_RETAINED",
+  "scope": "Preregistered native microsoft/bitnet-b1.58-2B-4T residual-stream sub-4-bit scalar-angular versus grouped-VQ test on the frozen 1016-token protocol with 4-bit cascaded radial codec.",
+  "protocol": {
+    "model": "microsoft/bitnet-b1.58-2B-4T",
+    "sequence_length": 128,
+    "calibration_tokens": 256,
+    "evaluation_prediction_tokens": 1016,
+    "radial_bits": 4,
+    "radial_overhead_bits_per_element": 0.0015625,
+    "vq_group": 4,
+    "vq_K": 256,
+    "vq_rate_bits_per_element": 2.0015625,
+    "scalar_rates_bits_per_element": {"A4": 4.0015625, "A3": 3.0015625, "A2": 2.0015625},
+    "seed": 26081705
+  },
+  "results": {
+    "hadamard_dynamic_A4_absmax": {"nll": 4.749723434448242, "ppl": 115.55232231578991},
+    "scalar_A4_log4_radius": {"nll": 4.148909568786621, "ppl": 63.36486758329395},
+    "scalar_A3_log4_radius": {"nll": 7.5609071254730225, "ppl": 1921.5878442799058},
+    "scalar_A2_log4_radius": {"nll": 16.35213565826416, "ppl": 12636950.482307494},
+    "vq_syn_A2_log4_radius": {"nll": 8.232137680053711, "ppl": 3759.862550710674},
+    "vq_cal_A2_log4_radius": {"nll": 7.246886968612671, "ppl": 1403.7281894880655},
+    "vq_syn_A2_exact_radius": {"nll": 8.07526421546936, "ppl": 3213.976438804856},
+    "vq_cal_A2_log4_radius_shifted": {"nll": 8.522168159484863, "ppl": 5024.936818849077}
+  },
+  "effects": {
+    "a4_gain_vs_dynamic_nll": -0.6008138656616211,
+    "best_a2": "vq_cal_A2_log4_radius",
+    "best_a2_delta_vs_dynamic_nll": 2.4971635341644287,
+    "best_a2_shift_penalty_nll": 1.2752811908721924,
+    "vq_cal_vs_scalar_a2_nll": -9.10524868965149
+  },
+  "decisions": {
+    "a2_scalar_success": false,
+    "a2_vq_success": false,
+    "representation_generalization": false,
+    "sub4_success": false,
+    "stop_sub4": true,
+    "vq_preemption": true
+  },
+  "interpretation": {
+    "supported": "The A4 shape-gain result survives with the 4-bit radial codec and materially outperforms the matched Hadamard dynamic-A4 baseline. The shifted-radius control on the best A2 VQ condition still shows strong token-radius specificity.",
+    "not_supported": "Neither A3 scalar nor A2 scalar/VQ residual compression beats the matched A4 baseline. The preregistered sub-4-bit claim therefore stops here. A1 must remain closed.",
+    "novelty_update": "At A2, grouped VQ is far better than the scalar angular grid, so any future claim must not center on the scalar grid. The surviving empirical contribution is an A4 native-BitNet residual shape-gain representation with a compact radial side channel and hostile radius controls."
+  },
+  "provenance": {
+    "workflow_run_id": 32009098039,
+    "workflow_job_id": 95324592317,
+    "workflow_commit": "8424a47eef494bd73b0de0941b77d0fabbb33865",
+    "artifact_id": 9282135385,
+    "artifact_sha256": "6f4625aea823ae764ccc19c8d0e37258cab765034cb6af70e401ca505df44c08"
+  }
+}

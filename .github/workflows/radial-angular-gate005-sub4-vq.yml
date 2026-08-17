@@ -1,0 +1,36 @@
+name: Radial Angular Gate 005 Sub4 VQ
+
+on:
+  push:
+    branches: [bitnet-radial-angular-pilot-20260816]
+    paths:
+      - '.github/workflows/radial-angular-gate005-sub4-vq.yml'
+      - 'experiments/radial_angular_gate005_sub4_vq.py'
+      - 'experiments/radial_angular_gate005_implementation_freeze_20260817.json'
+
+jobs:
+  gate005:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install CPU dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --index-url https://download.pytorch.org/whl/cpu 'torch>=2.4,<3'
+          pip install 'transformers>=4.57.6,<5' 'datasets>=4,<5' 'accelerate>=1.0' sentencepiece
+      - name: Run Gate 005
+        env:
+          HF_HUB_DISABLE_TELEMETRY: '1'
+          TOKENIZERS_PARALLELISM: 'false'
+        run: python experiments/radial_angular_gate005_sub4_vq.py
+      - name: Upload Gate 005 result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate005-results
+          path: gate005_results.json
+          if-no-files-found: ignore

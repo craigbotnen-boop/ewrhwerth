@@ -1,0 +1,56 @@
+{
+  "lane": "BITNET_RESIDUAL_SHAPE_GAIN_RATE_DISTORTION",
+  "date": "2026-08-17",
+  "status": "PREREGISTERED_HOLD_UNTIL_GATE007_PASS",
+  "purpose": "If Gate007 shows value beyond exact RMS restoration, test whether that advantage is merely due to using an absmax dynamic scale rather than a stronger token-adaptive angular A4 scale chosen to minimize reconstruction MSE.",
+  "entry_condition": "Gate007 must pass its robust exact-RMS-restored hostile-control rule on both WikiText-2 and C4. Otherwise do not run Gate008.",
+  "model": "microsoft/bitnet-b1.58-2B-4T",
+  "frozen_protocol": {
+    "sequence_length": 128,
+    "calibration_tokens": 1024,
+    "evaluation_sequences_per_corpus": 32,
+    "evaluation_prediction_tokens_per_corpus": 4064,
+    "corpora": ["wikitext2_test", "c4_realnewslike_validation"],
+    "calibration_transfer": "WikiText validation only; frozen unchanged for C4",
+    "radial_bits": 4,
+    "bootstrap_resamples": 2000,
+    "data_construction": "Identical to Gate007, including tensor hashes when available."
+  },
+  "oracle_token_adaptive_angular_quantizer": {
+    "input": "u = h / RMS(h), followed by the same 64x64 block Hadamard transform used by the fixed-angular method",
+    "bitwidth": 4,
+    "symmetric_levels": "integer codes -7..7",
+    "candidate_clip_fractions_of_token_absmax": [0.40,0.45,0.50,0.55,0.60,0.65,0.70,0.75,0.80,0.85,0.90,0.95,1.00],
+    "selection": "For each token independently, choose the candidate clip fraction that minimizes squared reconstruction error in the Hadamard-domain normalized direction. This may use the token values themselves but may not use labels, logits, downstream loss, or evaluation-corpus tuning.",
+    "postprocess": "Inverse Hadamard, reproject reconstructed direction to unit RMS, then multiply by the specified exact or 4-bit radial coordinate.",
+    "interpretation": "This is an intentionally overpowered quality oracle, not a practical rate-matched deployment baseline: it effectively spends extra runtime/metadata to choose a token-specific angular scale."
+  },
+  "conditions": [
+    "fixed_shared_angular_A4_exact_radius",
+    "fixed_shared_angular_A4_log4_radius",
+    "oracle_token_adaptive_MSE_angular_A4_exact_radius",
+    "oracle_token_adaptive_MSE_angular_A4_log4_radius"
+  ],
+  "primary_rules": {
+    "exact_fixed_grid_value": "On each corpus, fixed_shared_angular_A4_exact_radius NLL < oracle_token_adaptive_MSE_angular_A4_exact_radius NLL and paired-bootstrap 95% upper CI of the per-sequence NLL difference is < 0.",
+    "practical_fixed_grid_value": "On each corpus, fixed_shared_angular_A4_log4_radius NLL < oracle_token_adaptive_MSE_angular_A4_log4_radius NLL and paired-bootstrap 95% upper CI is < 0.",
+    "codec_fidelity": "On each corpus, fixed_shared_angular_A4_log4_radius NLL <= fixed_shared_angular_A4_exact_radius NLL + 0.10.",
+    "robust_pass": "All three rules pass on both corpora."
+  },
+  "fallback_interpretation": {
+    "oracle_wins": "If the token-adaptive MSE angular oracle matches or beats the fixed/shared grid, narrow the mechanism: the earlier advantage was attributable to angular scale/clipping choice rather than fixed/shared angular coding per se.",
+    "fixed_wins": "If the fixed/shared grid beats this oracle on both corpora, the evidence for independently useful shared normalized angular structure becomes substantially stronger."
+  },
+  "literature_boundary": {
+    "BitNet_v2": "Hadamard activation shaping for native A4 in 1-bit LLMs is prior art.",
+    "LLM_FP4": "Searching/optimizing quantizer clipping parameters to strengthen low-bit PTQ baselines is prior art; do not portray optimized clipping as novel.",
+    "SmoothQuant_and_followups": "Activation-range smoothing/scaling is established PTQ prior art.",
+    "shape_gain": "Magnitude-direction decomposition itself is prior art and not claimed as novel."
+  },
+  "prohibitions": [
+    "Do not tune candidate clip fractions after seeing Gate008 evaluation NLLs.",
+    "Do not use evaluation labels or downstream loss to select a token scale.",
+    "Do not call the oracle rate-matched to the 4.0015625-bit fixed/shared representation.",
+    "Do not reopen A3/A2/A1 regardless of Gate008 outcome."
+  ]
+}

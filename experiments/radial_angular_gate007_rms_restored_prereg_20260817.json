@@ -1,0 +1,35 @@
+{
+  "lane": "BITNET_RESIDUAL_SHAPE_GAIN_RATE_DISTORTION",
+  "date": "2026-08-17",
+  "status": "PREREGISTERED",
+  "purpose": "Test whether the robust Gate006 A4 advantage survives when the matched Hadamard dynamic-A4 baseline is granted the exact pre-quantization token RMS at every residual boundary.",
+  "model": "microsoft/bitnet-b1.58-2B-4T",
+  "frozen_protocol": {
+    "sequence_length": 128,
+    "calibration_tokens": 1024,
+    "evaluation_sequences_per_corpus": 32,
+    "evaluation_prediction_tokens_per_corpus": 4064,
+    "corpora": ["wikitext2_test", "c4_realnewslike_validation"],
+    "calibration_transfer": "WikiText validation only; frozen unchanged for C4",
+    "radial_bits": 4,
+    "bootstrap_resamples": 2000
+  },
+  "conditions": [
+    "hadamard_dynamic_A4_absmax",
+    "hadamard_dynamic_A4_exact_RMS_restored",
+    "angular_A4_exact_radius",
+    "angular_A4_log4_radius"
+  ],
+  "primary_rules": {
+    "exact_angular_independent_value": "On each corpus, angular_A4_exact_radius NLL < dynamic_A4_exact_RMS_restored NLL and paired-bootstrap 95% upper CI of the per-sequence NLL difference is < 0.",
+    "practical_log4_independent_value": "On each corpus, angular_A4_log4_radius NLL < dynamic_A4_exact_RMS_restored NLL and paired-bootstrap 95% upper CI is < 0.",
+    "codec_fidelity": "On each corpus, angular_A4_log4_radius NLL <= angular_A4_exact_radius NLL + 0.10.",
+    "robust_pass": "All three rules pass on both corpora."
+  },
+  "interpretation_boundary": "A pass isolates value in the shared/fixed angular representation beyond mere restoration of token RMS. It does not establish speed, energy efficiency, or novelty for shape-gain decomposition itself.",
+  "literature_boundary": {
+    "BitNet_v2": "Hadamard transforms are established for native A4 activations in 1-bit LLMs.",
+    "FPTQuant": "Function-preserving residual scaling and dynamic scaling are prior art for quantization-friendly activation shaping.",
+    "KVarN": "Token-scale preservation with Hadamard/normalization is established for KV-cache quantization, not this residual-stream intervention."
+  }
+}

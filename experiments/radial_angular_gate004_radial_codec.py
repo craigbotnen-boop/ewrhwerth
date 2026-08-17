@@ -9,12 +9,13 @@ SEQ=128; N_CAL=2; N_EVAL=8; CLIP_Q=0.995; BLOCK=64
 BITS=(8,6,5,4)
 TOL_NLL=0.10
 QLO=0.005; QHI=0.995
+EVAL_BATCH=4
 random.seed(SEED); torch.manual_seed(SEED)
 torch.set_num_threads(max(1,min(4,torch.get_num_threads())))
 print("GATE004_START",json.dumps({
     "model":MODEL,"seed":SEED,"seq":SEQ,"n_cal":N_CAL,"n_eval":N_EVAL,
     "calibration_tokens":N_CAL*SEQ,"eval_prediction_tokens":N_EVAL*(SEQ-1),
-    "bits":BITS,"tolerance_nll":TOL_NLL,
+    "bits":BITS,"tolerance_nll":TOL_NLL,"eval_batch":EVAL_BATCH,
     "rule":"codec passes iff NLL <= exact-radius NLL + 0.10 and NLL < same-run matched Hadamard dynamic A4; minimum passing bitwidth is selected; cascaded ranges are calibrated from already-quantized upstream trajectories"
 }),flush=True)
 
@@ -45,6 +46,7 @@ ids=tok(text,return_tensors="pt",add_special_tokens=False,truncation=False)["inp
 segments=[ids[i*SEQ:(i+1)*SEQ].unsqueeze(0) for i in range(N_CAL+N_EVAL)]
 if any(s.shape[1]!=SEQ for s in segments): raise RuntimeError("not enough frozen tokens")
 cal,ev=segments[:N_CAL],segments[N_CAL:]
+cal_batch=torch.cat(cal,dim=0)
 
 # Native-trajectory calibration for the fixed angular grid and static radial ranges.
 zs=[[] for _ in layers]; lrs=[[] for _ in layers]; handles=[]
@@ -56,8 +58,7 @@ for li,layer in enumerate(layers):
             lrs[i].append(torch.log(rr.flatten()).cpu()); return None
         return hook
     handles.append(layer.register_forward_hook(mk(li)))
-with torch.inference_mode():
-    for s in cal:model(s,use_cache=False)
+with torch.inference_mode(): model(cal_batch,use_cache=False)
 for h in handles:h.remove()
 clips=[]; static_lo=[]; static_hi=[]
 for zbank,lbank in zip(zs,lrs):
@@ -87,26 +88,26 @@ def angular_quant(h,i,radial_mode="exact",bits=None,los=None,his=None):
     else: raise ValueError(radial_mode)
     return (rq*uh).to(h.dtype)
 
-# Cascaded radial calibration: for layer i, prior layers 0..i-1 already use the candidate radial codec.
+# Exact cascaded calibration in one batched trajectory pass per bitwidth.
+# At layer i, the hook observes all calibration tokens after layers <i have already
+# been quantized, freezes the requested quantiles, then quantizes layer i before
+# the same forward pass continues. Because batch elements are independent, this
+# is equivalent to layerwise calibration on the frozen calibration set without
+# the previous O(L^2) repeated full-model forwards.
 def calibrate_cascaded(bits):
-    los=[]; his=[]
-    t0=time.time()
-    for target in range(len(layers)):
-        bank=[]; hs=[]
-        # Quantize already-calibrated upstream layer outputs.
-        for j in range(target):
-            def mkq(i):
-                def hook(_m,_inp,o):
-                    h=hidden(o); return repl(o,angular_quant(h,i,"log",bits,los,his))
-                return hook
-            hs.append(layers[j].register_forward_hook(mkq(j)))
-        def capture(_m,_inp,o):
-            bank.append(torch.log(rms(hidden(o).detach()).flatten()).cpu()); return None
-        hs.append(layers[target].register_forward_hook(capture))
-        with torch.inference_mode():
-            for s in cal:model(s,use_cache=False)
-        for hdl in hs:hdl.remove()
-        lr=torch.cat(bank); los.append(float(torch.quantile(lr,QLO))); his.append(float(torch.quantile(lr,QHI)))
+    los=[]; his=[]; hs=[]; t0=time.time()
+    for li,layer in enumerate(layers):
+        def mkq(i):
+            def hook(_m,_inp,o):
+                h=hidden(o)
+                lr=torch.log(rms(h.detach()).flatten()).cpu()
+                los.append(float(torch.quantile(lr,QLO))); his.append(float(torch.quantile(lr,QHI)))
+                return repl(o,angular_quant(h,i,"log",bits,los,his))
+            return hook
+        hs.append(layer.register_forward_hook(mkq(li)))
+    with torch.inference_mode(): model(cal_batch,use_cache=False)
+    for hdl in hs: hdl.remove()
+    if len(los)!=len(layers): raise RuntimeError(f"cascaded calibration captured {len(los)} ranges for {len(layers)} layers")
     print("CASCADE_CAL",json.dumps({"bits":bits,"seconds":time.time()-t0,"logr_width_min":min(h-l for l,h in zip(los,his)),"logr_width_median":float(torch.tensor([h-l for l,h in zip(los,his)]).median()),"logr_width_max":max(h-l for l,h in zip(los,his))}),flush=True)
     return los,his
 
@@ -128,8 +129,9 @@ def evaluate(name,mode,radial_mode=None,bits=None,los=None,his=None):
         hs.append(layer.register_forward_hook(mk(li)))
     total=0.; nt=0; t0=time.time()
     with torch.inference_mode():
-        for s in ev:
-            o=model(s,labels=s,use_cache=False); n=s.shape[1]-1; total+=float(o.loss)*n; nt+=n
+        for k in range(0,len(ev),EVAL_BATCH):
+            b=torch.cat(ev[k:k+EVAL_BATCH],dim=0)
+            o=model(b,labels=b,use_cache=False); n=b.shape[0]*(b.shape[1]-1); total+=float(o.loss)*n; nt+=n
     for hdl in hs:hdl.remove()
     nll=total/nt; out={"name":name,"nll":nll,"ppl":math.exp(nll),"seconds":time.time()-t0}; print("RESULT",json.dumps(out),flush=True); return out
 
@@ -151,7 +153,7 @@ passing_bits=[b for b in BITS if passes[f"angularH_A4_radius_log{b}_cascaded"]["
 minimum=min(passing_bits) if passing_bits else None
 print("FINAL_JSON",json.dumps({
     "experiment":"BITNET_PERSISTENT_RADIAL_ANGULAR_001_GATE004_RADIAL_CODEC",
-    "config":{"model":MODEL,"seq":SEQ,"calibration_tokens":N_CAL*SEQ,"eval_prediction_tokens":N_EVAL*(SEQ-1),"seed":SEED,"bits":BITS,"tolerance_nll":TOL_NLL,"radius_range_quantiles":[QLO,QHI]},
+    "config":{"model":MODEL,"seq":SEQ,"calibration_tokens":N_CAL*SEQ,"eval_prediction_tokens":N_EVAL*(SEQ-1),"seed":SEED,"bits":BITS,"tolerance_nll":TOL_NLL,"radius_range_quantiles":[QLO,QHI],"eval_batch":EVAL_BATCH},
     "gate_rule":"codec NLL <= exact-radius NLL + 0.10 and codec NLL < same-run matched Hadamard dynamic A4",
     "passes":passes,"minimum_passing_cascaded_bits":minimum,"results":results
 },sort_keys=True),flush=True)

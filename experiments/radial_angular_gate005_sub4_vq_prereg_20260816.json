@@ -1,0 +1,57 @@
+{
+  "lane": "BITNET_RESIDUAL_SHAPE_GAIN_RATE_DISTORTION",
+  "date": "2026-08-16",
+  "status": "PREREGISTERED_HOLD_UNTIL_GATE004_PASS",
+  "purpose": "If Gate004 identifies a compact radial codec, test whether sub-4-bit directional compression is specific to the scalar fixed angular grid or survives a structured vector-quantization comparator inspired by NSNQuant/shape-gain literature.",
+  "literature_boundary": {
+    "LLVQ": "Prior art establishes LLM shape-gain quantization with separate magnitude/direction and spherical/lattice directional coding, primarily for weights; do not claim invention of shape-gain.",
+    "NSNQuant": "Prior art establishes Hadamard + token normalization + a reusable low-bit VQ codebook for KV-cache compression at 1-2 bits; any residual-stream adaptation here must be labeled an adaptation, not NSNQuant proper.",
+    "KVarN": "Prior art establishes that token-scale errors can drive autoregressive KV-cache error accumulation and that Hadamard plus variance normalization can mitigate it."
+  },
+  "entry_condition": "Gate004 must yield at least one radial codec satisfying NLL <= exact-radius NLL + 0.10 and NLL < matched Hadamard dynamic A4 on the frozen native BitNet protocol. Otherwise STOP and do not run Gate005.",
+  "frozen_model": "microsoft/bitnet-b1.58-2B-4T",
+  "frozen_dataset": "Salesforce/wikitext wikitext-2-raw-v1 test",
+  "protocol": {
+    "sequence_length": 128,
+    "evaluation_prediction_tokens": 1016,
+    "hadamard_block": 64,
+    "radial_codec": "minimum passing cascaded bit-width from Gate004",
+    "directional_rates_bits_per_element": [3, 2],
+    "a1": "stretch only; not a primary gate"
+  },
+  "conditions": [
+    "matched Hadamard dynamic A4 baseline",
+    "fixed scalar angular A4 + selected radial codec",
+    "fixed scalar angular A3 + selected radial codec",
+    "fixed scalar angular A2 + selected radial codec",
+    "grouped VQ A2 + selected radial codec using 4-D groups and 256-codeword shared codebook (2 bits/element)",
+    "grouped VQ A2 + exact radius control",
+    "shifted-radius negative control for the best A2 directional code"
+  ],
+  "vq_comparator": {
+    "label": "NSNQuant-inspired residual-stream VQ adaptation",
+    "not_claimed_as": "NSNQuant proper",
+    "group_dimension": 4,
+    "codebook_size": 256,
+    "rate_bits_per_element": 2.0,
+    "preprocessing": "token RMS normalization followed by the same block-Hadamard transform as the scalar angular conditions; no per-token rescaling after normalization other than the separately coded radial variable",
+    "codebook_primary": "single reusable synthetic-Gaussian codebook, deterministic seed, optimized before evaluation without using evaluation tokens",
+    "codebook_hostile_control": "calibration-trained k-means codebook on calibration residual directions at exactly the same K and group dimension"
+  },
+  "primary_rules": {
+    "sub4_success": "At least one A3/A2 condition has NLL < matched dynamic A4 and remains better than its shifted-radius control by >= 0.25 NLL.",
+    "a2_scalar_success": "scalar angular A2 + selected radial codec NLL < matched dynamic A4 NLL.",
+    "a2_vq_success": "best frozen A2 VQ comparator + selected radial codec NLL < matched dynamic A4 NLL.",
+    "representation_generalization": "If both scalar-A2 and VQ-A2 beat matched dynamic A4, radial/angular separation is not specific to one directional code family.",
+    "vq_preemption": "If VQ-A2 beats scalar-A2 by >= 0.10 NLL, future novelty claims must center on radial preservation / residual application rather than the scalar angular grid.",
+    "stop": "If neither A3 nor A2 beats matched dynamic A4, park sub-4-bit activation claims and retain only the A4 representation result."
+  },
+  "rate_accounting": "Report angular bits/element plus radial overhead m/2560 separately; codebook storage is amortized and must also be reported for VQ, not silently ignored.",
+  "prohibitions": [
+    "Do not call the residual-stream VQ adaptation NSNQuant proper.",
+    "Do not claim novelty for shape-gain decomposition.",
+    "Do not tune on evaluation tokens.",
+    "Do not reopen A1 unless A2 passes.",
+    "Do not promote speed/energy claims from Transformers pseudo/functional execution; those require kernel-level benchmarking."
+  ]
+}

@@ -1,0 +1,82 @@
+{
+  "lane": "BITNET_RESIDUAL_SHAPE_GAIN_RATE_DISTORTION",
+  "gate": "005",
+  "date": "2026-08-17",
+  "status": "IMPLEMENTATION_FROZEN_BEFORE_EXECUTION",
+  "entry_condition": {
+    "gate004_passed": true,
+    "selected_radial_bits": 4,
+    "gate004_rule": "minimum passing cascaded radial bit-width",
+    "radial_overhead_bits_per_residual_element": 0.0015625
+  },
+  "frozen_protocol": {
+    "model": "microsoft/bitnet-b1.58-2B-4T",
+    "dataset": "Salesforce/wikitext wikitext-2-raw-v1 test",
+    "sequence_length": 128,
+    "calibration_sequences": 2,
+    "calibration_tokens": 256,
+    "evaluation_sequences": 8,
+    "evaluation_prediction_tokens": 1016,
+    "seed": 26081705,
+    "hadamard_block": 64,
+    "angular_clip_quantile": 0.995,
+    "radial_log_range_quantiles": [0.005, 0.995],
+    "radial_bits": 4
+  },
+  "scalar_angular_codec": {
+    "preprocess": "token RMS normalize, then block-Hadamard rotate",
+    "shared_clip": "per-layer native-calibration q0.995 absolute rotated normalized coordinate; same clip reused for A4/A3/A2, no rate-specific tuning",
+    "A4": "signed symmetric qmax=7 (15 used levels)",
+    "A3": "signed symmetric qmax=3 (7 used levels)",
+    "A2": "signed symmetric qmax=1 (ternary; 3 used levels)",
+    "decode": "inverse Hadamard then deterministic unit-RMS renormalization before multiplying by the separately coded radius"
+  },
+  "radial_codec": {
+    "type": "4-bit uniform scalar quantization of log RMS",
+    "calibration": "candidate-specific cascaded calibration on the same frozen 256 calibration tokens only; each layer range is frozen from the trajectory produced by already-quantized upstream layers under that same directional codec",
+    "evaluation_tuning": "none"
+  },
+  "vq_codec": {
+    "group_dimension": 4,
+    "codebook_size": 256,
+    "nominal_rate_bits_per_element": 2.0,
+    "distance": "Euclidean nearest-codeword in rotated normalized 4-D groups",
+    "decode": "inverse Hadamard then deterministic unit-RMS renormalization before multiplying by radius",
+    "synthetic_primary": {
+      "training_data": "32768 deterministic iid N(0,1) 4-D vectors",
+      "optimizer": "deterministic k-means++ initialization plus 8 Lloyd iterations",
+      "shared": "one codebook reused across all layers"
+    },
+    "calibration_hostile_control": {
+      "training_data": "2048 deterministic sampled rotated normalized 4-D groups per layer from native calibration trajectories, pooled across layers",
+      "optimizer": "deterministic k-means++ initialization plus 8 Lloyd iterations",
+      "shared": "one codebook reused across all layers"
+    },
+    "codebook_storage": "256 x 4 float32 values = 4096 bytes per codebook; report separately as amortized metadata"
+  },
+  "phase1_conditions": [
+    "matched Hadamard dynamic per-token absmax A4",
+    "scalar angular A4 + cascaded log4 radius",
+    "scalar angular A3 + cascaded log4 radius",
+    "scalar angular A2 + cascaded log4 radius",
+    "synthetic-codebook grouped VQ A2 + cascaded log4 radius",
+    "calibration-kmeans grouped VQ A2 + cascaded log4 radius",
+    "synthetic-codebook grouped VQ A2 + exact radius"
+  ],
+  "conditional_shift_control": "After phase1, evaluate the preregistered shifted-radius negative control for the best frozen A2 code. If A3 is the best/only sub-4 candidate and differs from the best A2 code, also evaluate shifted-radius A3 so the sub4-success rule has its required causal control. Selection uses only the already-preregistered best-candidate rule and does not alter any codec parameters.",
+  "decision_rules": {
+    "sub4_success": "At least one A3/A2 condition has NLL < matched dynamic A4 and is >=0.25 NLL better than its shifted-radius control.",
+    "a2_scalar_success": "scalar A2 + log4 radius NLL < matched dynamic A4 NLL",
+    "a2_vq_success": "best frozen A2 VQ + log4 radius NLL < matched dynamic A4 NLL",
+    "representation_generalization": "both scalar-A2 and VQ-A2 beat matched dynamic A4",
+    "vq_preemption": "best VQ-A2 beats scalar-A2 by >=0.10 NLL",
+    "stop": "if neither A3 nor A2 beats matched dynamic A4, park sub-4-bit claims and retain A4 representation result only"
+  },
+  "prohibitions": [
+    "No A1 unless A2 passes.",
+    "No evaluation-token tuning.",
+    "Do not call the residual VQ adaptation NSNQuant proper.",
+    "Do not claim novelty for shape-gain decomposition.",
+    "Do not claim hardware speed or energy gains from this functional Transformers experiment."
+  ]
+}

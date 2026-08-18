@@ -1,0 +1,161 @@
+{
+  "config": {
+    "bootstrap_resamples": 2000,
+    "calibration_tokens": 1024,
+    "calibration_transfer": "WikiText validation calibration frozen and transferred unchanged to C4",
+    "codebook_entries": 16,
+    "codebook_quantile_endpoints": [
+      0.005,
+      0.995
+    ],
+    "data_hashes": {
+      "c4_realnewslike_validation": "bfd2c9c2df055ea0572189e6993dd7f7fdb65ac8b841af526fcd1761af203ec4",
+      "cal_wikitext_validation": "b025c5b984588d46b3c5e6d64144ad90a487073be8357b50d2814abac12ac908",
+      "wikitext2_test": "f3645edea43250be6d5c485b2e5de4cb7e376e5f55234e8449b7237d4395ad8e"
+    },
+    "evaluation_prediction_tokens_per_corpus": 4064,
+    "model": "microsoft/bitnet-b1.58-2B-4T",
+    "oracle_gain_retention_threshold": 0.7,
+    "radial_bits": 4,
+    "raw_adaptive_nominal_bits_per_element": 4.0015625,
+    "runtime_scale_selection": "per-token reconstruction MSE only; no labels/logits/loss",
+    "scale_index_bits": 4,
+    "seed": 26081709,
+    "seq": 128,
+    "shape_gain_nominal_bits_per_element": 4.003125
+  },
+  "decisions": {
+    "c4_realnewslike_validation": {
+      "all": false,
+      "baseline_parity": true,
+      "codec_delta_log4_vs_exact": 0.0132121741771698,
+      "codec_fidelity": true,
+      "delta_shape_log4_vs_dynamic_rms": -0.6622465252876282,
+      "delta_shape_log4_vs_fixed_log4": -0.15431233495473862,
+      "delta_shape_log4_vs_raw_adaptive": 0.029690325260162354,
+      "dynamic_rms_parity_delta": 0.0,
+      "fixed_log4_parity_delta": 0.0,
+      "oracle_gain_retention": true,
+      "oracle_gain_retention_fraction": 0.9454595405232448,
+      "shape_gain_vs_dynamic": true,
+      "shape_gain_vs_fixed": true,
+      "shape_gain_vs_raw_adaptive": false,
+      "shape_vs_dynamic_bootstrap_95ci": [
+        -0.7197200804948807,
+        -0.608965702354908
+      ],
+      "shape_vs_fixed_bootstrap_95ci": [
+        -0.18719784170389175,
+        -0.12193272262811661
+      ],
+      "shape_vs_raw_bootstrap_95ci": [
+        0.0035830363631248474,
+        0.05476369708776474
+      ]
+    },
+    "wikitext2_test": {
+      "all": false,
+      "baseline_parity": true,
+      "codec_delta_log4_vs_exact": 0.004710152745246887,
+      "codec_fidelity": true,
+      "delta_shape_log4_vs_dynamic_rms": -0.6211949437856674,
+      "delta_shape_log4_vs_fixed_log4": -0.13482990115880966,
+      "delta_shape_log4_vs_raw_adaptive": 0.022333644330501556,
+      "dynamic_rms_parity_delta": 0.0,
+      "fixed_log4_parity_delta": 0.0,
+      "oracle_gain_retention": true,
+      "oracle_gain_retention_fraction": 0.9728339198800331,
+      "shape_gain_vs_dynamic": true,
+      "shape_gain_vs_fixed": true,
+      "shape_gain_vs_raw_adaptive": false,
+      "shape_vs_dynamic_bootstrap_95ci": [
+        -0.6831105202436447,
+        -0.5615941286087036
+      ],
+      "shape_vs_fixed_bootstrap_95ci": [
+        -0.1829586625099182,
+        -0.0875416100025177
+      ],
+      "shape_vs_raw_bootstrap_95ci": [
+        -0.008060604333877563,
+        0.05392371863126755
+      ]
+    }
+  },
+  "experiment": "BITNET_RESIDUAL_SHAPE_GAIN_RATE_DISTORTION_GATE009_RATE_MATCHED_ADAPTIVE",
+  "results": [
+    {
+      "corpus": "wikitext2_test",
+      "name": "hadamard_dynamic_A4_exact_RMS_restored",
+      "nll": 4.638513311743736,
+      "ppl": 103.39052379007225,
+      "seconds": 909.0577092170715
+    },
+    {
+      "corpus": "wikitext2_test",
+      "name": "fixed_shared_angular_A4_log4_radius",
+      "nll": 4.1521482691168785,
+      "ppl": 63.57042008266342,
+      "seconds": 908.2302584648132
+    },
+    {
+      "corpus": "wikitext2_test",
+      "name": "raw_adaptive_clip_codebook16_A4",
+      "nll": 3.9949847236275673,
+      "ppl": 54.325010728377706,
+      "seconds": 916.3154733181
+    },
+    {
+      "corpus": "wikitext2_test",
+      "name": "shape_gain_codebook16_A4_exact_radius",
+      "nll": 4.012608215212822,
+      "ppl": 55.290893209589,
+      "seconds": 916.5242490768433
+    },
+    {
+      "corpus": "wikitext2_test",
+      "name": "shape_gain_codebook16_A4_log4_radius",
+      "nll": 4.017318367958069,
+      "ppl": 55.551936055250856,
+      "seconds": 916.5493521690369
+    },
+    {
+      "corpus": "c4_realnewslike_validation",
+      "name": "hadamard_dynamic_A4_exact_RMS_restored",
+      "nll": 3.998234026134014,
+      "ppl": 54.50181621359446,
+      "seconds": 908.3576316833496
+    },
+    {
+      "corpus": "c4_realnewslike_validation",
+      "name": "fixed_shared_angular_A4_log4_radius",
+      "nll": 3.4902998358011246,
+      "ppl": 32.795779581028384,
+      "seconds": 908.5322270393372
+    },
+    {
+      "corpus": "c4_realnewslike_validation",
+      "name": "raw_adaptive_clip_codebook16_A4",
+      "nll": 3.3062971755862236,
+      "ppl": 27.28391066670294,
+      "seconds": 916.0989413261414
+    },
+    {
+      "corpus": "c4_realnewslike_validation",
+      "name": "shape_gain_codebook16_A4_exact_radius",
+      "nll": 3.322775326669216,
+      "ppl": 27.73737951161712
+    },
+    {
+      "corpus": "c4_realnewslike_validation",
+      "name": "shape_gain_codebook16_A4_log4_radius",
+      "nll": 3.335987500846386,
+      "ppl": 28.106351560005423
+    }
+  ],
+  "status": "GATE009_TERMINAL_METHOD_FAIL_STOP_COMPRESSION_METHOD_LANE",
+  "artifact": {
+    "source": "user-uploaded gate009-results.zip matching GitHub Actions artifact screenshot",
+    "zip_sha256": "bbd0b91df9a8788de7771d070ea697190e8268797b99be87828be2595c478568"
+  }
+}

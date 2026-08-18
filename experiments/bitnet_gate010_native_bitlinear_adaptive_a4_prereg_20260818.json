@@ -1,0 +1,49 @@
+{
+  "lane": "BITNET_NATIVE_BITLINEAR_ADAPTIVE_A4",
+  "date": "2026-08-18",
+  "status": "PREREGISTERED",
+  "purpose": "After Gate009 stopped the standalone shape-gain compression lane, test whether the surviving adaptive clipping effect transfers from post-layer residual hooks to the actual BitLinear activation-quantization sites of the official packed BitNet b1.58 model.",
+  "model": "microsoft/bitnet-b1.58-2B-4T",
+  "frozen_protocol": {
+    "sequence_length": 128,
+    "calibration_tokens": 1024,
+    "evaluation_sequences_per_corpus": 16,
+    "evaluation_prediction_tokens_per_corpus": 2032,
+    "corpora": ["wikitext2_test", "c4_realnewslike_validation"],
+    "calibration_transfer": "WikiText validation only; frozen unchanged for C4",
+    "data_construction": "Same token construction and offsets as Gates006-009; use the same first 16 sequences of each previously frozen 32-sequence evaluation tensor.",
+    "a4_signed_levels": "-8..7",
+    "adaptive_codebook_entries_per_BitLinear": 16,
+    "scale_index_bits": 4,
+    "oracle_target_fractions_of_token_absmax": [0.40,0.45,0.50,0.55,0.60,0.65,0.70,0.75,0.80,0.85,0.90,0.95,1.00],
+    "codebook_quantile_endpoints": [0.005,0.995],
+    "bootstrap_resamples": 2000
+  },
+  "site_definition": "Patch transformers.integrations.bitnet.BitLinear.activation_quant. The patched quantizer receives exactly the tensor that the native BitLinear forward would quantize, after any module-local RMSNorm. Packed ternary weights and all other model operations remain unchanged.",
+  "conditions": [
+    "native_W1.58A8",
+    "native_site_dynamic_absmax_A4",
+    "native_site_adaptive_codebook16_A4"
+  ],
+  "adaptive_quantizer": {
+    "calibration": "For each BitLinear independently, on frozen WikiText validation calibration tokens, find the MSE-minimizing clip c among 13 fractions of that token's absmax under signed A4 reconstruction. Build a 16-entry absolute clip codebook from quantiles 0.005..0.995 of those token-optimal c values.",
+    "runtime": "For each token and BitLinear independently, choose the frozen codebook entry minimizing activation reconstruction MSE; return signed INT4-equivalent integer codes -8..7 plus scale=7/c. Selection uses only the current activation tensor, never labels, logits, downstream loss, or evaluation-corpus tuning.",
+    "decoder_reconstructible": "The selected clip is identified by a 4-bit codebook index; the 16-entry codebook is fixed per BitLinear from calibration."
+  },
+  "primary_rules": {
+    "adaptive_beats_dynamic": "On each corpus, adaptive-codebook A4 mean NLL < dynamic-absmax A4 mean NLL and the paired-bootstrap 95% upper CI of per-sequence adaptive-minus-dynamic NLL is < 0.",
+    "absolute_viability": "On each corpus, adaptive-codebook A4 NLL <= native A8 NLL + 0.50.",
+    "robust_pass": "Both rules pass on both corpora and native A8 parity to the previously frozen native model is within 1e-5 where directly comparable."
+  },
+  "interpretation_boundary": {
+    "pass": "Adaptive clipping/range selection survives at the true BitLinear activation-quantization sites and merits larger/task-level evaluation. This does not establish speed, energy, kernel efficiency, or novelty over adaptive quantization generally.",
+    "fail": "Stop the residual-hook-derived adaptive-A4 method lane; retain Gates006-009 only as a representation/diagnostic result.",
+    "shape_gain": "Gate009 remains binding. Do not reopen the separately coded radius/shape-gain compression method regardless of Gate010 outcome."
+  },
+  "literature_boundary": [
+    "BitNet b1.58 official packed model is natively W1.58A8 with per-token absmax activation quantization.",
+    "BitNet v2 already establishes Hadamard-based native A4 for 1-bit LLMs.",
+    "TWLA already establishes W1.58A4 PTQ with learned orthogonal shaping and mixed precision.",
+    "FPTQuant, DynamicPTQ, InfoQuant, MXFP/AdaMX and related work establish broad activation shaping, dynamic scaling, residual sensitivity, and adaptive low-bit quantization; Gate010 is a transfer/viability test, not a broad novelty claim."
+  ]
+}

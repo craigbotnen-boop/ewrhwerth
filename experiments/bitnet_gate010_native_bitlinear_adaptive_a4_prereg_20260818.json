@@ -1,7 +1,7 @@
 {
   "lane": "BITNET_NATIVE_BITLINEAR_ADAPTIVE_A4",
   "date": "2026-08-18",
-  "status": "PREREGISTERED",
+  "status": "PREREGISTERED_IMPLEMENTATION_FROZEN",
   "purpose": "After Gate009 stopped the standalone shape-gain compression lane, test whether the surviving adaptive clipping effect transfers from post-layer residual hooks to the actual BitLinear activation-quantization sites of the official packed BitNet b1.58 model.",
   "model": "microsoft/bitnet-b1.58-2B-4T",
   "frozen_protocol": {
@@ -17,6 +17,8 @@
     "scale_index_bits": 4,
     "oracle_target_fractions_of_token_absmax": [0.40,0.45,0.50,0.55,0.60,0.65,0.70,0.75,0.80,0.85,0.90,0.95,1.00],
     "codebook_quantile_endpoints": [0.005,0.995],
+    "selection_mse_channel_sample": 128,
+    "selection_mse_channel_sampling": "deterministic evenly spaced indices over the final activation dimension; absmax itself is always computed over the full activation dimension",
     "bootstrap_resamples": 2000
   },
   "site_definition": "Patch transformers.integrations.bitnet.BitLinear.activation_quant. The patched quantizer receives exactly the tensor that the native BitLinear forward would quantize, after any module-local RMSNorm. Packed ternary weights and all other model operations remain unchanged.",
@@ -26,8 +28,8 @@
     "native_site_adaptive_codebook16_A4"
   ],
   "adaptive_quantizer": {
-    "calibration": "For each BitLinear independently, on frozen WikiText validation calibration tokens, find the MSE-minimizing clip c among 13 fractions of that token's absmax under signed A4 reconstruction. Build a 16-entry absolute clip codebook from quantiles 0.005..0.995 of those token-optimal c values.",
-    "runtime": "For each token and BitLinear independently, choose the frozen codebook entry minimizing activation reconstruction MSE; return signed INT4-equivalent integer codes -8..7 plus scale=7/c. Selection uses only the current activation tensor, never labels, logits, downstream loss, or evaluation-corpus tuning.",
+    "calibration": "For each BitLinear independently, on all frozen WikiText validation calibration tokens, find the MSE-minimizing clip c among 13 fractions of that token's full-dimension absmax under signed A4 reconstruction. Candidate MSE is estimated on the frozen deterministic 128-channel sample. Build a 16-entry absolute clip codebook from quantiles 0.005..0.995 of those token-optimal c values.",
+    "runtime": "For each token and BitLinear independently, choose the frozen codebook entry minimizing signed-A4 activation reconstruction MSE on the same deterministic 128-channel sample, then quantize the full activation with that c; return INT4-equivalent integer codes -8..7 plus scale=7/c. Selection uses only the current activation tensor, never labels, logits, downstream loss, or evaluation-corpus tuning.",
     "decoder_reconstructible": "The selected clip is identified by a 4-bit codebook index; the 16-entry codebook is fixed per BitLinear from calibration."
   },
   "primary_rules": {

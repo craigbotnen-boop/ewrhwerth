@@ -1,0 +1,59 @@
+{
+  "lane": "BITNET_NATIVE_BITLINEAR_ADAPTIVE_A4",
+  "date": "2026-08-18",
+  "status": "PREREGISTERED_HOLD_UNTIL_GATE011_PASS",
+  "purpose": "If Gate010 and Gate011 both pass, test whether the adaptive 16-entry per-BitLinear clipping codebook adds value beyond the already-established Four-Over-Six principle of trying multiple token/block-local scales and selecting by quantization MSE.",
+  "entry_condition": "Gate011 must pass its frozen adaptive-vs-absmean, adaptive-vs-absmax sanity, and absolute-viability rules on both WikiText-2 and C4. Otherwise do not run Gate012.",
+  "model": "microsoft/bitnet-b1.58-2B-4T",
+  "frozen_protocol": {
+    "sequence_length": 128,
+    "calibration_tokens": 1024,
+    "evaluation_sequences_per_corpus": 16,
+    "evaluation_prediction_tokens_per_corpus": 2032,
+    "corpora": ["wikitext2_test", "c4_realnewslike_validation"],
+    "calibration_transfer": "WikiText validation only; frozen unchanged for C4",
+    "data_construction": "Exactly the Gate010/Gate011 first-16 prefixes of the previously frozen 32-sequence tensors.",
+    "bootstrap_resamples": 2000
+  },
+  "conditions": [
+    "native_W1.58A8",
+    "native_site_per_token_absmean_A4",
+    "native_site_adaptive_codebook16_A4",
+    "native_site_two_scale_MSE_A4_46_inspired"
+  ],
+  "two_scale_MSE_A4_definition": {
+    "literature_mapping": "Four Over Six evaluates two block-local scales, quantizes under both, and selects the representation with lower quantization MSE. Because the present comparator is signed INT4 rather than FP4 E2M1, this is explicitly a 4/6-inspired INT4 hostile control, not an implementation of NVFP4 Four Over Six.",
+    "per_token_candidates": "For each native BitLinear activation token x, let a=max(abs(x)). Candidate clip thresholds are c_full=a and c_shrunk=(2/3)*a, preserving the 4:6 range ratio of Four Over Six.",
+    "quantizer": "For each candidate c: scale=7/c; q=round(x*scale).clip(-8,7); x_hat=q/scale. Choose the candidate with lower full-vector mean squared reconstruction error for that token.",
+    "selection_information": "The two-scale choice is one binary selector in addition to the token-local base scale implied by absmax. Report this metadata distinction explicitly; do not call it rate-matched to the 4-bit fixed-codebook index unless a common scale-storage convention is implemented.",
+    "selection_restrictions": "Selection uses only the current activation tensor. No labels, logits, downstream loss, or evaluation-corpus tuning."
+  },
+  "primary_rules": {
+    "adaptive_beats_two_scale": "On each corpus, adaptive-codebook A4 mean NLL < two-scale-MSE A4 mean NLL and the paired-bootstrap 95% upper CI of adaptive-minus-two-scale per-sequence NLL is < 0.",
+    "adaptive_beats_absmean_sanity": "Gate011 adaptive-vs-absmean direction reproduces on identical slices within numerical tolerance.",
+    "absolute_viability": "On each corpus, adaptive-codebook A4 NLL <= native A8 NLL + 0.50.",
+    "robust_pass": "All three rules pass on both corpora."
+  },
+  "secondary_ceiling": {
+    "optional_only_if_primary_passes": "After the primary frozen verdict is computed, a separately labeled non-rate-matched ceiling may evaluate the 13 candidate token-local clip fractions [0.40,0.45,...,1.00] by exact reconstruction MSE. It cannot alter the primary Gate012 pass/fail decision.",
+    "interpretation": "If the 16-entry calibration-derived codebook beats the two-scale hostile control but loses to the 13-way token-local ceiling, the remaining contribution is metadata/selection-structure efficiency rather than superior unconstrained distortion optimization."
+  },
+  "interpretation_boundary": {
+    "pass": "Calibration-derived per-BitLinear scale dictionaries retain a quality advantage over both BitNet-v2-style absmean A4 and a direct Four-Over-Six-inspired token-local MSE scale selector at true BitLinear sites. This would justify larger/task-level evaluation, but not a broad novelty claim for adaptive MSE scale selection.",
+    "fail": "Stop the adaptive-codebook method claim. The surviving effect is explained by known adaptive scale-selection principles rather than the calibrated dictionary construction.",
+    "shape_gain": "Gate009 remains binding; do not reopen separately coded radius/shape-gain."
+  },
+  "literature_boundary": [
+    "Four Over Six (arXiv:2512.02010) evaluates two block-local FP4 scales and reports MSE selection as the best overall scale-selection rule; the present INT4 comparator is inspired by that mechanism, not equivalent to NVFP4.",
+    "BlockDialect (ICML 2025) already establishes online activation assignment from a small representation formatbook.",
+    "BitNet v2 already establishes native A4 for 1-bit LLMs with H-BitLinear and continue-training.",
+    "TWLA already establishes W1.58A4 PTQ using orthogonal shaping and mixed-precision activation allocation."
+  ],
+  "prohibitions": [
+    "Do not run Gate012 if Gate011 fails.",
+    "Do not tune the 2/3 candidate ratio after evaluation.",
+    "Do not use downstream NLL to select token scales.",
+    "Do not call the 4/6-inspired INT4 control an implementation of NVFP4 Four Over Six.",
+    "Do not reopen A3/A2/A1 or shape-gain."
+  ]
+}

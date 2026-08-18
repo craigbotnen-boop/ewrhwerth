@@ -1,0 +1,56 @@
+{
+  "lane": "BITNET_NATIVE_BITLINEAR_ADAPTIVE_A4",
+  "date": "2026-08-18",
+  "status": "PREREGISTERED_HOLD_UNTIL_GATE010_PASS",
+  "purpose": "If Gate010 shows that adaptive codebook A4 transfers to the true BitLinear activation-quantization sites, test the strongest immediate scalar-quantizer objection: whether the gain is only relative to absmax A4 and disappears against the per-token absmean INT4 rule used by BitNet v2.",
+  "entry_condition": "Gate010 must pass its frozen adaptive-vs-dynamic-absmax and absolute-viability rules on both WikiText-2 and C4. Otherwise do not run Gate011.",
+  "model": "microsoft/bitnet-b1.58-2B-4T",
+  "frozen_protocol": {
+    "sequence_length": 128,
+    "calibration_tokens": 1024,
+    "evaluation_sequences_per_corpus": 16,
+    "evaluation_prediction_tokens_per_corpus": 2032,
+    "corpora": ["wikitext2_test", "c4_realnewslike_validation"],
+    "calibration_transfer": "WikiText validation only; frozen unchanged for C4",
+    "data_construction": "Exactly the Gate010 token construction and first-16-sequence prefixes of the previously frozen 32-sequence tensors.",
+    "adaptive_codebook_entries_per_BitLinear": 16,
+    "adaptive_scale_index_bits": 4,
+    "bootstrap_resamples": 2000
+  },
+  "conditions": [
+    "native_W1.58A8",
+    "native_site_dynamic_absmax_A4",
+    "native_site_per_token_absmean_A4",
+    "native_site_adaptive_codebook16_A4"
+  ],
+  "absmean_A4_definition": {
+    "source_boundary": "Use the BitNet v2 INT4 scalar rule at the same BitLinear activation inputs, without adding Hadamard transforms or retraining.",
+    "formula": "For each token x: beta = mean(abs(x)); scale = sqrt(7)/(beta + eps); q = round(x*scale).clip(-8,7); return integer q and scale. The BitLinear output is dequantized by the existing post_quant_process path.",
+    "epsilon": "Match the numerical floor convention used by the Gate010 implementation where needed for finite arithmetic."
+  },
+  "adaptive_quantizer": "Identical frozen Gate010 16-entry per-BitLinear absolute clip codebooks and per-token MSE-only codebook selection. No retraining, labels, logits, downstream loss, or evaluation-corpus tuning.",
+  "primary_rules": {
+    "adaptive_beats_absmean": "On each corpus, adaptive-codebook A4 mean NLL < per-token-absmean A4 mean NLL and the paired-bootstrap 95% upper CI of adaptive-minus-absmean per-sequence NLL is < 0.",
+    "adaptive_beats_absmax_sanity": "Gate010 adaptive-vs-absmax direction reproduces on the identical slices within numerical tolerance.",
+    "absolute_viability": "On each corpus, adaptive-codebook A4 NLL <= native A8 NLL + 0.50.",
+    "robust_pass": "All three rules pass on both corpora."
+  },
+  "interpretation_boundary": {
+    "pass": "Adaptive clip-codebook selection adds value beyond both absmax A4 and the BitNet-v2-style per-token absmean scalar rule at the native BitLinear sites. This still does not establish superiority to BitNet v2 as an architecture, because BitNet v2 uses H-BitLinear and INT4 continue-training.",
+    "fail": "Narrow or stop the adaptive-codebook method claim: if absmean matches or beats it, the surviving Gate010 effect is a baseline-selection effect rather than evidence for a distinct adaptive clipping method.",
+    "hadamard_caveat": "Do not transplant H-BitLinear into the frozen b1.58 checkpoint as a supposedly function-preserving baseline. BitNet v2 changes selected projections with an online Hadamard transform and then trains/continue-trains that architecture; direct insertion into the frozen b1.58 checkpoint would test a different, untrained function.",
+    "shape_gain": "Gate009 remains binding; do not reopen separately coded radius/shape-gain."
+  },
+  "literature_boundary": [
+    "BitNet b1.58 official packed inference is W1.58A8 with per-token absmax activation quantization.",
+    "BitNet v2 uses per-token absmax for INT8 but per-token absmean for INT4, and H-BitLinear applies an online Hadamard transform at selected projections followed by INT4 continue-training.",
+    "TWLA already demonstrates W1.58A4 PTQ using orthogonal shaping and mixed-precision allocation.",
+    "InfoQuant and related PTQ work already establish that activation-distribution shaping and quantizer-facing range design matter at A4; no broad novelty claim is permitted."
+  ],
+  "prohibitions": [
+    "Do not run Gate011 if Gate010 fails.",
+    "Do not tune the absmean rule or adaptive codebooks on evaluation NLL.",
+    "Do not call Gate011 a comparison to full BitNet v2 architecture.",
+    "Do not reopen A3/A2/A1 or the shape-gain lane."
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "conditions": [
+    "hadamard_dynamic_A4_exact_RMS_restored",
+    "fixed_shared_angular_A4_log4_radius",
+    "raw_adaptive_clip_codebook16_A4",
+    "shape_gain_codebook16_A4_exact_radius",
+    "shape_gain_codebook16_A4_log4_radius"
+  ],
+  "date": "2026-08-17",
+  "encodable_shape_gain_codec": {
+    "codebook_training": "On WikiText validation calibration activations only, find each token's MSE-optimal clip among fractions 0.40..1.00 of its normalized Hadamard-domain absmax, then form 16 per-layer absolute clip values from fixed 0.5%-99.5% quantiles of those optimal clip targets.",
+    "decoder_requirement": "Decoder needs only layer identity, 4-bit angular-scale index, 4-bit radius index, and the A4 element codes; per-layer codebooks are static model metadata.",
+    "nominal_bits_per_activation_element_at_d2560": 4.003125,
+    "representation": "h = r u; 4-bit log-RMS radius plus 4-bit index into a frozen per-layer absolute angular clip codebook; normalized Hadamard-domain direction uses symmetric A4 levels -7..7.",
+    "runtime_selection": "For each token and layer, choose the 4-bit codebook index minimizing normalized Hadamard-domain reconstruction MSE. No labels, logits, downstream loss, or evaluation-corpus tuning."
+  },
+  "frozen_historical_references": {
+    "Gate007_dynamic_exact_RMS_c4": 3.998234026134014,
+    "Gate007_dynamic_exact_RMS_wikitext2": 4.638513311743736,
+    "Gate008_fixed_log4_c4": 3.4902998358011246,
+    "Gate008_fixed_log4_wikitext2": 4.1521482691168785,
+    "Gate008_oracle_log4_c4": 3.297784671187401,
+    "Gate008_oracle_log4_wikitext2": 3.9999716952443123
+  },
+  "frozen_protocol": {
+    "activation_bits": 4,
+    "angular_scale_codebook_entries_per_layer": 16,
+    "angular_scale_index_bits": 4,
+    "bootstrap_resamples": 2000,
+    "calibration_tokens": 1024,
+    "calibration_transfer": "WikiText validation only; frozen unchanged for C4",
+    "corpora": [
+      "wikitext2_test",
+      "c4_realnewslike_validation"
+    ],
+    "data_construction": "Identical token slices and SHA-256 hashes to Gates007/008.",
+    "evaluation_prediction_tokens_per_corpus": 4064,
+    "evaluation_sequences_per_corpus": 32,
+    "hadamard_block": 64,
+    "radial_bits": 4,
+    "sequence_length": 128
+  },
+  "lane": "BITNET_RESIDUAL_SHAPE_GAIN_RATE_DISTORTION",
+  "model": "microsoft/bitnet-b1.58-2B-4T",
+  "primary_rules": {
+    "baseline_parity": "Dynamic exact-RMS-restored and fixed-grid log4 NLLs must reproduce Gate007/008 within 1e-5 on both corpora.",
+    "codec_fidelity": "On each corpus, shape_gain_codebook16_A4_log4_radius NLL <= shape_gain_codebook16_A4_exact_radius NLL + 0.10.",
+    "oracle_gain_retention": "On each corpus, relative to the exact-RMS-restored dynamic baseline, the encodable log4 shape-gain codec must retain at least 70% of Gate008 oracle-log4's NLL improvement.",
+    "shape_gain_vs_dynamic": "On each corpus, shape_gain_codebook16_A4_log4_radius must beat hadamard_dynamic_A4_exact_RMS_restored and paired-bootstrap 95% upper CI of the per-sequence NLL difference must be <0.",
+    "shape_gain_vs_fixed": "On each corpus, shape_gain_codebook16_A4_log4_radius must beat fixed_shared_angular_A4_log4_radius and paired-bootstrap 95% upper CI must be <0.",
+    "shape_gain_vs_raw_adaptive": "On each corpus, shape_gain_codebook16_A4_log4_radius must beat raw_adaptive_clip_codebook16_A4 and paired-bootstrap 95% upper CI must be <0.",
+    "terminal_method_pass": "All rules above pass on both corpora."
+  },
+  "prohibitions": [
+    "Do not tune the 16-entry codebooks, quantile endpoints, 70% retention threshold, or pass criteria after evaluation begins.",
+    "Do not use evaluation labels/logits/loss to choose scales.",
+    "Do not reopen A3/A2/A1.",
+    "Do not claim latency, energy, or kernel efficiency from this experiment."
+  ],
+  "purpose": "Test whether Gate008's token-adaptive angular-scale advantage can be converted into a decoder-reconstructible low-side-rate residual activation codec, and whether shape-gain separation adds value beyond adaptive clipping of the raw residual itself.",
+  "raw_adaptive_clipping_control": {
+    "interpretation": "This isolates whether the separate radius/normalized-direction representation adds value beyond cheap adaptive clipping itself.",
+    "nominal_bits_per_activation_element_at_d2560": 4.0015625,
+    "representation": "No shape-gain decomposition. Quantize the raw Hadamard residual directly with A4 using a frozen 16-entry per-layer absolute clip codebook calibrated from raw calibration activations.",
+    "runtime_selection": "Per token, choose the 4-bit codebook index minimizing raw Hadamard-domain reconstruction MSE."
+  },
+  "status": "PREREGISTERED_TERMINAL_METHOD_GATE",
+  "terminal_interpretation": {
+    "fail": "Stop the compression-method lane centered on a separately coded radius. Bank the mechanistic finding that token RMS and token-adaptive directional clipping matter, but do not pursue a standalone method unless a materially new architecture or prior-art gap appears.",
+    "pass": "Proceed to native BitNet internal quantization-site integration and task-level evaluation. Do not claim broad shape-gain novelty."
+  }
+}

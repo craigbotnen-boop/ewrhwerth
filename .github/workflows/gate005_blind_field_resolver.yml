@@ -1,6 +1,8 @@
 name: Gate005 blind field authority resolver
 
 on:
+  pull_request:
+    branches: [three-paper-suite]
   push:
     branches: [three-paper-suite]
     paths:

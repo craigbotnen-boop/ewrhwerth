@@ -26,25 +26,66 @@ jobs:
             'https://raw.githubusercontent.com/des-science/DES-SN5YR/main/4_DISTANCES_COVMAT/DES-Dovekie_Metadata.csv' \
             -o /tmp/DES-Dovekie_Metadata.csv
 
-      - name: Blind probe allowed authority tokens only
+      - name: Resolve only CID CIDint FIELD for frozen targets
         shell: bash
         run: |
           python - <<'PY'
-          from itertools import islice
+          from pathlib import Path
 
+          targets = {'1264689', '1331707', '1431064'}
+          allowed = ('CID', 'CIDint', 'FIELD')
           src = '/tmp/DES-Dovekie_Metadata.csv'
+          out = Path('gate005_field_authority.csv')
+
+          def norm_id(x):
+              s = '' if x is None else str(x).strip()
+              if s.endswith('.0'):
+                  s = s[:-2]
+              return s
+
+          found = {t: [] for t in targets}
           with open(src, encoding='utf-8-sig', errors='strict') as f:
-              for i, line in enumerate(islice(f, 20), 1):
-                  u = line.upper()
-                  print(
-                      'SCHEMA_PROBE '
-                      f'line={i} '
-                      f'has_CID={"CID" in u} '
-                      f'has_CIDINT={"CIDINT" in u} '
-                      f'has_FIELD={"FIELD" in u} '
-                      f'commas={line.count(",")} '
-                      f'tabs={line.count(chr(9))} '
-                      f'semicolons={line.count(";")} '
-                      f'whitespace_tokens={len(line.split())}'
-                  )
+              header = f.readline().split()
+              missing = [name for name in allowed if name not in header]
+              if missing:
+                  raise SystemExit('Required authority columns absent')
+              idx = {name: header.index(name) for name in allowed}
+
+              for line in f:
+                  parts = line.split()
+                  if len(parts) <= max(idx.values()):
+                      raise SystemExit('Malformed metadata row')
+                  cid = norm_id(parts[idx['CID']])
+                  cidint = norm_id(parts[idx['CIDint']])
+                  field = parts[idx['FIELD']].strip()
+
+                  matched = None
+                  if cid in targets:
+                      matched = cid
+                  if cidint in targets:
+                      if matched is not None and matched != cidint:
+                          raise SystemExit('Ambiguous authority identifier match')
+                      matched = cidint
+                  if matched is not None:
+                      found[matched].append((cid, cidint, field))
+
+          bad = {k: len(v) for k, v in found.items() if len(v) != 1}
+          if bad:
+              raise SystemExit('Authority extraction failed: missing or non-unique target')
+
+          rows = [(t, *found[t][0]) for t in sorted(targets, key=int)]
+          out.write_text(
+              'target_id,CID,CIDint,FIELD\n' +
+              ''.join(f'{t},{cid},{cidint},{field}\n' for t, cid, cidint, field in rows),
+              encoding='utf-8'
+          )
+          for t, cid, cidint, field in rows:
+              print(f'FIELD_AUTHORITY target_id={t} CID={cid} CIDint={cidint} FIELD={field}')
           PY
+
+      - name: Upload blind authority receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate005-field-authority
+          path: gate005_field_authority.csv
+          if-no-files-found: error

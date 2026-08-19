@@ -37,3 +37,4 @@ jobs:
             gate010r_results.json
             gate010r.log
           if-no-files-found: warn
+# trigger-only touch 2026-08-18T21:53-06:00; no scientific protocol change

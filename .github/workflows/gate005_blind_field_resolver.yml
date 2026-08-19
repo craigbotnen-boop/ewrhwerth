@@ -20,53 +20,61 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install FITS reader
-        run: python -m pip install --quiet astropy
-
-      - name: Fetch DES-SN5YR event-header table only
+      - name: Fetch public Dovekie metadata without rendering it
         run: |
           curl -fsSL \
-            'https://raw.githubusercontent.com/des-science/DES-SN5YR/main/0_DATA/DES-SN5YR_DES/DES-SN5YR_DES_HEAD.FITS.gz' \
-            -o /tmp/DES-SN5YR_DES_HEAD.FITS.gz
+            'https://raw.githubusercontent.com/des-science/DES-SN5YR/main/4_DISTANCES_COVMAT/DES-Dovekie_Metadata.csv' \
+            -o /tmp/DES-Dovekie_Metadata.csv
 
-      - name: Resolve only SNID and FIELD for frozen targets
+      - name: Resolve only CID CIDint FIELD for frozen targets
         shell: bash
         run: |
           python - <<'PY'
-          from astropy.io import fits
+          import csv
           from pathlib import Path
 
           targets = {'1264689', '1331707', '1431064'}
-          src = '/tmp/DES-SN5YR_DES_HEAD.FITS.gz'
+          src = '/tmp/DES-Dovekie_Metadata.csv'
           out = Path('gate005_field_authority.csv')
 
-          with fits.open(src, memmap=False) as hdul:
-              data = hdul[1].data
-              names = set(data.names)
-              if not {'SNID', 'FIELD'} <= names:
+          def norm_id(x):
+              s = '' if x is None else str(x).strip()
+              if s.endswith('.0'):
+                  s = s[:-2]
+              return s
+
+          found = {t: [] for t in targets}
+          with open(src, newline='', encoding='utf-8-sig') as f:
+              r = csv.DictReader(f)
+              required = {'FIELD'}
+              if not required <= set(r.fieldnames or []):
                   raise SystemExit('Required authority columns absent')
+              if not ({'CID', 'CIDint'} & set(r.fieldnames or [])):
+                  raise SystemExit('Required authority identifier absent')
 
-              found = {t: [] for t in targets}
-              for row in data:
-                  snid = row['SNID']
-                  field = row['FIELD']
-                  if isinstance(snid, bytes):
-                      snid = snid.decode('utf-8', 'strict')
-                  if isinstance(field, bytes):
-                      field = field.decode('utf-8', 'strict')
-                  snid = str(snid).strip()
-                  field = str(field).strip()
-                  if snid in targets:
-                      found[snid].append(field)
+              for row in r:
+                  cid = norm_id(row.get('CID'))
+                  cidint = norm_id(row.get('CIDint'))
+                  matched = None
+                  if cid in targets:
+                      matched = cid
+                  if cidint in targets:
+                      matched = cidint if matched is None else matched
+                  if matched is not None:
+                      found[matched].append((cid, cidint, str(row.get('FIELD', '')).strip()))
 
-          bad = {k: v for k, v in found.items() if len(v) != 1}
+          bad = {k: len(v) for k, v in found.items() if len(v) != 1}
           if bad:
               raise SystemExit('Authority extraction failed: missing or non-unique target')
 
-          rows = [(t, found[t][0]) for t in sorted(targets, key=int)]
-          out.write_text('target_id,FIELD\n' + ''.join(f'{t},{f}\n' for t, f in rows), encoding='utf-8')
-          for t, f in rows:
-              print(f'FIELD_AUTHORITY {t} {f}')
+          rows = [(t, *found[t][0]) for t in sorted(targets, key=int)]
+          out.write_text(
+              'target_id,CID,CIDint,FIELD\n' +
+              ''.join(f'{t},{cid},{cidint},{field}\n' for t, cid, cidint, field in rows),
+              encoding='utf-8'
+          )
+          for t, cid, cidint, field in rows:
+              print(f'FIELD_AUTHORITY target_id={t} CID={cid} CIDint={cidint} FIELD={field}')
           PY
 
       - name: Upload blind authority receipt

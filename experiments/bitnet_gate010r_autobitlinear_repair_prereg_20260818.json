@@ -1,0 +1,26 @@
+{
+  "lane": "BITNET_NATIVE_AUTOBITLINEAR_ADAPTIVE_A4",
+  "date": "2026-08-18",
+  "status": "PREREGISTERED_IMPLEMENTATION_REPAIR_ONLY",
+  "parent_gate": "BITNET_GATE010_NATIVE_BITLINEAR_ADAPTIVE_A4_TRANSFER",
+  "failure_classification": "Gate010 implementation failure before scientific test: the official packed microsoft/bitnet-b1.58-2B-4T configuration declares linear_class=autobitlinear and quantization_mode=offline, while Gate010 searched only for transformers.integrations.bitnet.BitLinear instances. The failed run therefore cannot adjudicate the adaptive-A4 hypothesis.",
+  "repair": "Target the actual offline transformers.integrations.bitnet.AutoBitLinear modules and substitute activation quantization at the same post-module-RMSNorm location where AutoBitLinear.forward calls ActQuant.apply(input). Leave unpacked/fixed ternary weights, bias handling, weight_scale, datasets, calibration, A4 definitions, codebook construction, bootstrap seeds, and pass/fail thresholds unchanged.",
+  "frozen_protocol_unchanged": {
+    "model": "microsoft/bitnet-b1.58-2B-4T",
+    "sequence_length": 128,
+    "calibration_tokens": 1024,
+    "evaluation_sequences_per_corpus": 16,
+    "evaluation_prediction_tokens_per_corpus": 2032,
+    "corpora": ["wikitext2_test", "c4_realnewslike_validation"],
+    "adaptive_codebook_entries_per_site": 16,
+    "scale_index_bits": 4,
+    "candidate_clip_fractions": [0.40,0.45,0.50,0.55,0.60,0.65,0.70,0.75,0.80,0.85,0.90,0.95,1.00],
+    "codebook_quantile_endpoints": [0.005,0.995],
+    "selection_mse_channel_sample": 128,
+    "bootstrap_resamples": 2000,
+    "conditions": ["native_W1.58A8", "native_site_dynamic_absmax_A4", "native_site_adaptive_codebook16_A4"]
+  },
+  "pass_rule": "On each corpus adaptive mean NLL must be lower than dynamic-absmax A4, paired-bootstrap 95% upper CI of adaptive-minus-dynamic must be <0, and adaptive NLL must be <= native A8 NLL +0.50; frozen data hashes must match.",
+  "failure_rule": "If Gate010R executes the intended AutoBitLinear-site experiment and fails the frozen pass rule, stop the adaptive-A4 method lane. Gate011 remains forbidden unless Gate010R passes.",
+  "interpretation_boundary": "This repair changes implementation compatibility only. It does not reopen Gate009 shape-gain, alter novelty claims, tune on evaluation loss, or create a new scientific hypothesis."
+}

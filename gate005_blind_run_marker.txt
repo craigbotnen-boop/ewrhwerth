@@ -1,0 +1,1 @@
+Gate 005 blind FIELD authority resolver trigger. No outcome data.

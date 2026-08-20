@@ -8,9 +8,7 @@ using SHA
 
 # Gate 019R4: first CS-TSSOS scout for a fixed-curvature K8 fiber.
 # Fresh deterministic exact-rational target. This does NOT reuse an unsaved prior target.
-# PR-trigger diagnostic marker: 2026-08-20T01:31Z
-# Julia 1.12 soft-scope fix: eliminate mutable global qfree counter.
-# Polynomial accumulator fix: force Any containers for sums of polynomial terms.
+# Julia 1.12 fixes: no mutable global counters and no Any-coefficient polynomial accumulators.
 
 const N = 7
 const EDGES = [(i,j) for i in 1:N for j in i+1:N]
@@ -66,57 +64,47 @@ function det3(a,b,c)
            a[3]*(b[1]*c[2]-b[2]*c[1])
 end
 
-F = Vector{Any}(undef,35)
-tri_edges = Vector{NTuple{3,Int}}(undef,35)
-for (tt,(i,j,k)) in enumerate(TRIS)
-    ea = EIDX[(i,j)]
-    eb = EIDX[(j,k)]
-    ec = EIDX[(i,k)]
-    tri_edges[tt] = (ea,eb,ec)
-    F[tt] = det3(nvec(ea), nvec(eb), nvec(ec))
-end
+tri_edges = [(EIDX[(i,j)], EIDX[(j,k)], EIDX[(i,k)]) for (i,j,k) in TRIS]
+F = [1.0*det3(nvec(ea), nvec(eb), nvec(ec)) for (ea,eb,ec) in tri_edges]
 
-# Projective chart lambda_Q=1. Index lamfree without a mutable global loop counter.
-lambda = Any[t == Q ? 1.0 : lamfree[t < Q ? t : t-1] for t in 1:35]
+# Projective chart lambda_Q = 1, with all other multipliers in [-1,1].
+lam(t) = t == Q ? 1 : lamfree[t < Q ? t : t-1]
 
-zpoly = 0*nx[1]
-g = [Any[zpoly,zpoly,zpoly] for _ in 1:21]
-for t in 1:35
-    ea,eb,ec = tri_edges[t]
-    A,B,C = nvec(ea), nvec(eb), nvec(ec)
-    ga = crossp(B,C)
-    gb = crossp(C,A)
-    gc = crossp(A,B)
-    for d in 1:3
-        g[ea][d] += lambda[t]*ga[d]
-        g[eb][d] += lambda[t]*gb[d]
-        g[ec][d] += lambda[t]*gc[d]
+# Build each stationarity polynomial from scratch inside a function. This avoids
+# DynamicPolynomials coefficient promotion through Vector{Any}, which caused the
+# previous StackOverflowError under Julia 1.12.
+function grad_component(e::Int, d::Int)
+    s = 0
+    for t in 1:35
+        ea,eb,ec = tri_edges[t]
+        A,B,C = nvec(ea), nvec(eb), nvec(ec)
+        lt = lam(t)
+        if e == ea
+            s = s + lt*crossp(B,C)[d]
+        elseif e == eb
+            s = s + lt*crossp(C,A)[d]
+        elseif e == ec
+            s = s + lt*crossp(A,B)[d]
+        end
     end
+    return 1.0*s
 end
 
-ineq = Any[]
-for l in lamfree
-    push!(ineq, 1 - l^2)
-end
-for m in mu
-    push!(ineq, 25 - m^2)
-end
-for rr in r
-    push!(ineq, 4 - rr^2)
-end
+g = [[grad_component(e,d) for d in 1:3] for e in 1:21]
 
-eq = Any[]
-for e in 1:21
-    push!(eq, nx[e]^2 + ny[e]^2 + nz[e]^2 - 1)
-end
-for t in 1:35
-    push!(eq, r[t] - F[t] + PSTAR[t])
-end
-for e in 1:21, d in 1:3
-    push!(eq, g[e][d] - mu[e]*nvec(e)[d])
-end
+ineq = vcat(
+    [1.0 - l^2 for l in lamfree],
+    [25.0 - m^2 for m in mu],
+    [4.0 - rr^2 for rr in r]
+)
 
-obj = sum(rr^2 for rr in r)
+eq = vcat(
+    [1.0*nx[e]^2 + ny[e]^2 + nz[e]^2 - 1.0 for e in 1:21],
+    [r[t] - F[t] + PSTAR[t] for t in 1:35],
+    [g[e][d] - 1.0*mu[e]*nvec(e)[d] for e in 1:21 for d in 1:3]
+)
+
+obj = sum(1.0*rr^2 for rr in r)
 vars = [nx; ny; nz; lamfree; mu; r]
 pop = [obj; ineq; eq]
 

@@ -33,10 +33,10 @@ jobs:
       - name: Julia version
         run: julia --version
 
-      - name: Install TSSOS and SCS
+      - name: Install TSSOS and COSMO
         shell: bash
         run: |
-          julia -e 'using Pkg; Pkg.add(url="https://github.com/wangjie212/TSSOS"); Pkg.add(["DynamicPolynomials","JuMP","SCS"]); Pkg.precompile()'
+          julia -e 'using Pkg; Pkg.add(url="https://github.com/wangjie212/TSSOS"); Pkg.add(["DynamicPolynomials","JuMP","COSMO"]); Pkg.precompile()'
 
       - name: Run Gate 019R4 order-2 CS-TSSOS scout
         run: julia gate019r4_tssos.jl
@@ -75,4 +75,4 @@ jobs:
             gate019r4_sha256.txt
           if-no-files-found: warn
 
-# Actions retrigger marker: 2026-08-20T13:00-06:00
+# Gate019R4B COSMO cross-check trigger: 2026-08-20T16:37-06:00

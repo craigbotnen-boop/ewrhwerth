@@ -198,3 +198,5 @@ target_bytes = read("gate019r4_target.txt")
 open("gate019r4_sha256.txt","w") do io
     println(io, bytes2hex(sha256(target_bytes)), "  gate019r4_target.txt")
 end
+
+# Trigger stamp: workflow file already exists on this branch; this push is intentional.

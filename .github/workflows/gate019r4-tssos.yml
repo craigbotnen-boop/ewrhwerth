@@ -1,0 +1,69 @@
+name: gate019r4-tssos
+
+on:
+  push:
+    branches:
+      - gate019r4-tssos
+    paths:
+      - gate019r4_tssos.jl
+      - .github/workflows/gate019r4-tssos.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  scout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: '1.12'
+
+      - name: Julia version
+        run: julia --version
+
+      - name: Install TSSOS and SCS
+        shell: bash
+        run: |
+          julia -e 'using Pkg; Pkg.add(url="https://github.com/wangjie212/TSSOS"); Pkg.add(["DynamicPolynomials","JuMP","SCS"]); Pkg.precompile()'
+
+      - name: Run Gate 019R4 order-2 CS-TSSOS scout
+        run: julia gate019r4_tssos.jl
+
+      - name: Show receipt
+        if: always()
+        shell: bash
+        run: |
+          echo '--- target hash ---'
+          cat gate019r4_sha256.txt 2>/dev/null || true
+          echo '--- result ---'
+          cat gate019r4_result.txt 2>/dev/null || true
+
+      - name: Persist Gate 019R4 receipt on branch
+        if: always()
+        shell: bash
+        run: |
+          if [ -f gate019r4_result.txt ] || [ -f gate019r4_target.txt ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add gate019r4_target.txt gate019r4_result.txt gate019r4_sha256.txt 2>/dev/null || true
+            if ! git diff --cached --quiet; then
+              git commit -m "Gate 019R4 TSSOS receipt"
+              git push
+            fi
+          fi
+
+      - name: Upload Gate 019R4 receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate019r4-tssos-receipt
+          path: |
+            gate019r4_target.txt
+            gate019r4_result.txt
+            gate019r4_sha256.txt
+          if-no-files-found: warn

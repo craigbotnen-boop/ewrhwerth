@@ -1,14 +1,13 @@
 using DynamicPolynomials
 using TSSOS
 using JuMP
-using SCS
+using COSMO
 using LinearAlgebra
 using Printf
 using SHA
 
-# Gate 019R4: first CS-TSSOS scout for a fixed-curvature K8 fiber.
-# Fresh deterministic exact-rational target. This does NOT reuse an unsaved prior target.
-# Julia 1.12 fixes: no mutable global counters and no Any-coefficient polynomial accumulators.
+# Gate 019R4B: cross-check the same order-2 CS-TSSOS relaxation with COSMO.
+# The mathematical model/target is unchanged from run #11; only the SDP backend changes.
 
 const N = 7
 const EDGES = [(i,j) for i in 1:N for j in i+1:N]
@@ -70,9 +69,6 @@ F = [1.0*det3(nvec(ea), nvec(eb), nvec(ec)) for (ea,eb,ec) in tri_edges]
 # Projective chart lambda_Q = 1, with all other multipliers in [-1,1].
 lam(t) = t == Q ? 1 : lamfree[t < Q ? t : t-1]
 
-# Build each stationarity polynomial from scratch inside a function. This avoids
-# DynamicPolynomials coefficient promotion through Vector{Any}, which caused the
-# previous StackOverflowError under Julia 1.12.
 function grad_component(e::Int, d::Int)
     s = 0
     for t in 1:35
@@ -116,45 +112,66 @@ open("gate019r4_target.txt","w") do io
     println(io, "inequalities=", length(ineq))
     println(io, "equalities=", length(eq))
     println(io, "relaxation_order=2")
+    println(io, "solver=COSMO")
+    println(io, "solver_eps_abs=1e-5")
+    println(io, "solver_eps_rel=1e-5")
+    println(io, "solver_time_limit_seconds=4200")
     for (i,p) in enumerate(PSTAR_R)
         println(io, @sprintf("PSTAR[%02d]=%s", i, string(p)))
     end
 end
 
 println("GATE019R4_MODEL vars=$(length(vars)) ineq=$(length(ineq)) eq=$(length(eq)) chart=$(TRIS[Q])")
-println("objective_degree=2 max_constraint_degree=3")
+println("objective_degree=2 max_constraint_degree=3 solver=COSMO")
 flush(stdout)
 
-model = Model(optimizer_with_attributes(SCS.Optimizer,
+# COSMO has its own chordal PSD decomposition enabled by default. Keep the same
+# 1e-5 target tolerances as run #11, but impose a 70-minute solver limit so the
+# workflow has time to serialize a receipt before GitHub's 90-minute job timeout.
+model = Model(optimizer_with_attributes(COSMO.Optimizer,
     "eps_abs" => 1.0e-5,
     "eps_rel" => 1.0e-5,
-    "max_iters" => 200000,
-    "verbose" => 1))
+    "max_iter" => 100000,
+    "time_limit" => 4200.0,
+    "verbose" => true,
+    "verbose_timing" => true))
 
-result_text = ""
-try
+function run_scout(pop, vars, eq, model)
     t0 = time()
-    opt, sol, data = cs_tssos(pop, vars, 2;
-        numeq=length(eq),
-        CS="MF",
-        TS="MD",
-        eqTS="MD",
-        MomentOne=true,
-        solution=false,
-        Gram=false,
-        QUIET=false,
-        model=model)
-    elapsed = time()-t0
-    result_text = "status=COMPLETED\nopt_lower_bound=$(repr(opt))\nelapsed_seconds=$(elapsed)\n"
-    println("GATE019R4_OPT_LOWER_BOUND=", opt)
-    println("GATE019R4_ELAPSED_SECONDS=", elapsed)
-catch err
-    bt = catch_backtrace()
-    result_text = "status=ERROR\nerror=$(sprint(showerror,err,bt))\n"
-    println("GATE019R4_ERROR")
-    showerror(stdout,err,bt)
-    println()
+    try
+        opt, sol, data = cs_tssos(pop, vars, 2;
+            numeq=length(eq),
+            CS="MF",
+            TS="MD",
+            eqTS="MD",
+            MomentOne=true,
+            solution=false,
+            Gram=false,
+            QUIET=false,
+            model=model)
+        elapsed = time()-t0
+        term = termination_status(model)
+        pstat = primal_status(model)
+        dstat = dual_status(model)
+        result_text = "status=COMPLETED\nsolver=COSMO\ntermination_status=$(term)\nprimal_status=$(pstat)\ndual_status=$(dstat)\nopt_lower_bound=$(repr(opt))\nelapsed_seconds=$(elapsed)\n"
+        println("GATE019R4_TERMINATION_STATUS=", term)
+        println("GATE019R4_PRIMAL_STATUS=", pstat)
+        println("GATE019R4_DUAL_STATUS=", dstat)
+        println("GATE019R4_OPT_LOWER_BOUND=", opt)
+        println("GATE019R4_ELAPSED_SECONDS=", elapsed)
+        return result_text
+    catch err
+        elapsed = time()-t0
+        bt = catch_backtrace()
+        result_text = "status=ERROR\nsolver=COSMO\nelapsed_seconds=$(elapsed)\nerror=$(sprint(showerror,err,bt))\n"
+        println("GATE019R4_ERROR")
+        showerror(stdout,err,bt)
+        println()
+        return result_text
+    end
 end
+
+result_text = run_scout(pop, vars, eq, model)
 
 open("gate019r4_result.txt","w") do io
     write(io,result_text)

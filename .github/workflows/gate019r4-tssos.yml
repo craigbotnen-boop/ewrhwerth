@@ -8,6 +8,12 @@ on:
     paths:
       - gate019r4_tssos.jl
       - .github/workflows/gate019r4-tssos.yml
+  pull_request:
+    branches:
+      - three-paper-suite
+    paths:
+      - gate019r4_tssos.jl
+      - .github/workflows/gate019r4-tssos.yml
   workflow_dispatch:
 
 permissions:
@@ -45,7 +51,7 @@ jobs:
           cat gate019r4_result.txt 2>/dev/null || true
 
       - name: Persist Gate 019R4 receipt on branch
-        if: always()
+        if: always() && github.event_name != 'pull_request'
         shell: bash
         run: |
           if [ -f gate019r4_result.txt ] || [ -f gate019r4_target.txt ]; then

@@ -8,6 +8,7 @@ using SHA
 
 # Gate 019R4: first CS-TSSOS scout for a fixed-curvature K8 fiber.
 # Fresh deterministic exact-rational target. This does NOT reuse an unsaved prior target.
+# PR-trigger diagnostic marker: 2026-08-20T01:31Z
 
 const N = 7
 const EDGES = [(i,j) for i in 1:N for j in i+1:N]

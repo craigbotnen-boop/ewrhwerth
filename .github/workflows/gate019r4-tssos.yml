@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - gate019r4-tssos
+      - three-paper-suite
     paths:
       - gate019r4_tssos.jl
       - .github/workflows/gate019r4-tssos.yml

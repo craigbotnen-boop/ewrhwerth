@@ -10,6 +10,7 @@ using SHA
 # Fresh deterministic exact-rational target. This does NOT reuse an unsaved prior target.
 # PR-trigger diagnostic marker: 2026-08-20T01:31Z
 # Julia 1.12 soft-scope fix: eliminate mutable global qfree counter.
+# Polynomial accumulator fix: force Any containers for sums of polynomial terms.
 
 const N = 7
 const EDGES = [(i,j) for i in 1:N for j in i+1:N]
@@ -75,11 +76,11 @@ for (tt,(i,j,k)) in enumerate(TRIS)
     F[tt] = det3(nvec(ea), nvec(eb), nvec(ec))
 end
 
-# Projective chart lambda_Q=1.  Index lamfree without a mutable global loop counter.
+# Projective chart lambda_Q=1. Index lamfree without a mutable global loop counter.
 lambda = Any[t == Q ? 1.0 : lamfree[t < Q ? t : t-1] for t in 1:35]
 
 zpoly = 0*nx[1]
-g = [[zpoly,zpoly,zpoly] for _ in 1:21]
+g = [Any[zpoly,zpoly,zpoly] for _ in 1:21]
 for t in 1:35
     ea,eb,ec = tri_edges[t]
     A,B,C = nvec(ea), nvec(eb), nvec(ec)

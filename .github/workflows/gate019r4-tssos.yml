@@ -74,3 +74,5 @@ jobs:
             gate019r4_result.txt
             gate019r4_sha256.txt
           if-no-files-found: warn
+
+# Actions retrigger marker: 2026-08-20T13:00-06:00

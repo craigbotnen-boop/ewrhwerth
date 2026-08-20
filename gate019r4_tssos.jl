@@ -9,6 +9,7 @@ using SHA
 # Gate 019R4: first CS-TSSOS scout for a fixed-curvature K8 fiber.
 # Fresh deterministic exact-rational target. This does NOT reuse an unsaved prior target.
 # PR-trigger diagnostic marker: 2026-08-20T01:31Z
+# Julia 1.12 soft-scope fix: eliminate mutable global qfree counter.
 
 const N = 7
 const EDGES = [(i,j) for i in 1:N for j in i+1:N]
@@ -74,16 +75,8 @@ for (tt,(i,j,k)) in enumerate(TRIS)
     F[tt] = det3(nvec(ea), nvec(eb), nvec(ec))
 end
 
-lambda = Vector{Any}(undef,35)
-qfree = 1
-for t in 1:35
-    if t == Q
-        lambda[t] = 1.0
-    else
-        lambda[t] = lamfree[qfree]
-        qfree += 1
-    end
-end
+# Projective chart lambda_Q=1.  Index lamfree without a mutable global loop counter.
+lambda = Any[t == Q ? 1.0 : lamfree[t < Q ? t : t-1] for t in 1:35]
 
 zpoly = 0*nx[1]
 g = [[zpoly,zpoly,zpoly] for _ in 1:21]

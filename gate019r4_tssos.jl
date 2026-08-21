@@ -11,7 +11,7 @@ const MOI = MathOptInterface
 
 # Gate 019R5A: direct 97-variable Positivstellensatz scout for chart (2,4,6).
 # Eliminate the 35 residual variables and the 21 radial multipliers mu_e.
-# Criticality is imposed directly as n_e x g_e = 0.  Instead of asking a
+# Criticality is imposed directly as n_e x g_e = 0. Instead of asking a
 # feasibility solver for a fixed -1 certificate, maximize rho in [0,1] subject
 # to -rho lying in the sparse Putinar quadratic module + equality ideal.
 # rho=0 is an explicit feasible point; any robust rho>0 is a direct emptiness
@@ -131,80 +131,80 @@ println("GATE019R5A_MODEL vars=$(length(vars)) ineq=$(length(ineq)) eq=$(length(
 println("GATE019R5A_MAX_CONSTRAINT_DEGREE=4 relaxation_order=2")
 flush(stdout)
 
-model = Model(optimizer_with_attributes(SCS.Optimizer,
-    "eps_abs" => 1.0e-5,
-    "eps_rel" => 1.0e-5,
-    "eps_infeas" => 1.0e-7,
-    "max_iters" => 30000,
-    "verbose" => 1))
+function run_gate()
+    model = Model(optimizer_with_attributes(SCS.Optimizer,
+        "eps_abs" => 1.0e-5,
+        "eps_rel" => 1.0e-5,
+        "eps_infeas" => 1.0e-7,
+        "max_iters" => 30000,
+        "verbose" => 1))
 
-@variable(model, 0 <= rho <= 1)
-# Force a DynamicPolynomials polynomial with JuMP affine coefficients that is
-# algebraically equal to -rho.
-nonneg = -rho*(1.0 + nx[1]^2) + rho*nx[1]^2
+    @variable(model, 0 <= rho <= 1)
+    # Force a DynamicPolynomials polynomial with JuMP affine coefficients that is
+    # algebraically equal to -rho.
+    nonneg = -rho*(1.0 + nx[1]^2) + rho*nx[1]^2
 
-result_text = ""
-cert_saved = false
-try
+    cert_saved = false
     t0 = time()
-    info = add_psatz!(model, nonneg, vars, ineq, eq, 2;
-        CS="MF", TS="MD", eqTS="MD", SO=1,
-        GroebnerBasis=false, QUIET=false)
+    try
+        info = add_psatz!(model, nonneg, vars, ineq, eq, 2;
+            CS="MF", TS="MD", eqTS="MD", SO=1,
+            GroebnerBasis=false, QUIET=false)
 
-    blocksizes = Int[]
-    for i in eachindex(info.blocksize), j in eachindex(info.blocksize[i])
-        append!(blocksizes, info.blocksize[i][j])
+        blocksizes = Int[]
+        for i in eachindex(info.blocksize), j in eachindex(info.blocksize[i])
+            append!(blocksizes, info.blocksize[i][j])
+        end
+        maxclique = isempty(info.cliquesize) ? 0 : maximum(info.cliquesize)
+        maxblock = isempty(blocksizes) ? 0 : maximum(blocksizes)
+        println("GATE019R5A_MAX_CLIQUE=", maxclique)
+        println("GATE019R5A_MAX_BLOCK=", maxblock)
+        println("GATE019R5A_AFFINE_IDENTITIES=", length(info.tsupp))
+        println("GATE019R5A_JUMP_VARIABLES=", num_variables(model))
+        flush(stdout)
+
+        @objective(model, Max, rho)
+        optimize!(model)
+        elapsed = time()-t0
+        term = termination_status(model)
+        pstat = primal_status(model)
+        dstat = dual_status(model)
+        rho_val = has_values(model) ? value(rho) : NaN
+        candidate = isfinite(rho_val) && rho_val > 1.0e-4 && string(term) in ("OPTIMAL", "ALMOST_OPTIMAL")
+
+        if candidate
+            GramMat = [[[value.(info.GramMat[i][j][l]) for l in eachindex(info.GramMat[i][j])]
+                        for j in eachindex(info.GramMat[i])] for i in eachindex(info.GramMat)]
+            multiplier = [[value.(info.multiplier[i][j]) for j in eachindex(info.multiplier[i])]
+                          for i in eachindex(info.multiplier)]
+            cert = (
+                gate="019R5A", chart=TRIS[Q], rho=rho_val,
+                termination_status=string(term), primal_status=string(pstat), dual_status=string(dstat),
+                GramMat=GramMat, multiplier=multiplier,
+                basis=info.basis, ebasis=info.ebasis, blocks=info.blocks, eblocks=info.eblocks,
+                I=info.I, J=info.J, cliques=info.cliques, tsupp=info.tsupp,
+                PSTAR_R=PSTAR_R
+            )
+            serialize("gate019r4_numeric_certificate.jls", cert)
+            cert_saved = true
+        end
+
+        result_text = "status=COMPLETED\ngate=019R5A\nsolver=SCS\ntermination_status=$(term)\nprimal_status=$(pstat)\ndual_status=$(dstat)\nrho=$(repr(rho_val))\npositive_certificate_candidate=$(candidate)\ncertificate_saved=$(cert_saved)\nmax_clique=$(maxclique)\nmax_block=$(maxblock)\naffine_identities=$(length(info.tsupp))\njump_variables=$(num_variables(model))\nelapsed_seconds=$(elapsed)\n"
+        println("GATE019R5A_TERMINATION_STATUS=", term)
+        println("GATE019R5A_PRIMAL_STATUS=", pstat)
+        println("GATE019R5A_DUAL_STATUS=", dstat)
+        println("GATE019R5A_RHO=", rho_val)
+        println("GATE019R5A_POSITIVE_CERTIFICATE_CANDIDATE=", candidate)
+        println("GATE019R5A_CERTIFICATE_SAVED=", cert_saved)
+        println("GATE019R5A_ELAPSED_SECONDS=", elapsed)
+        return result_text
+    catch err
+        bt = catch_backtrace()
+        return "status=ERROR\ngate=019R5A\nsolver=SCS\nerror=$(sprint(showerror,err,bt))\n"
     end
-    maxclique = isempty(info.cliquesize) ? 0 : maximum(info.cliquesize)
-    maxblock = isempty(blocksizes) ? 0 : maximum(blocksizes)
-    println("GATE019R5A_MAX_CLIQUE=", maxclique)
-    println("GATE019R5A_MAX_BLOCK=", maxblock)
-    println("GATE019R5A_AFFINE_IDENTITIES=", length(info.tsupp))
-    println("GATE019R5A_JUMP_VARIABLES=", num_variables(model))
-    flush(stdout)
-
-    @objective(model, Max, rho)
-    optimize!(model)
-    elapsed = time()-t0
-    term = termination_status(model)
-    pstat = primal_status(model)
-    dstat = dual_status(model)
-    rho_val = has_values(model) ? value(rho) : NaN
-    candidate = isfinite(rho_val) && rho_val > 1.0e-4 && string(term) in ("OPTIMAL", "ALMOST_OPTIMAL")
-
-    if candidate
-        GramMat = [[[value.(info.GramMat[i][j][l]) for l in eachindex(info.GramMat[i][j])]
-                    for j in eachindex(info.GramMat[i])] for i in eachindex(info.GramMat)]
-        multiplier = [[value.(info.multiplier[i][j]) for j in eachindex(info.multiplier[i])]
-                      for i in eachindex(info.multiplier)]
-        cert = (
-            gate="019R5A", chart=TRIS[Q], rho=rho_val,
-            termination_status=string(term), primal_status=string(pstat), dual_status=string(dstat),
-            GramMat=GramMat, multiplier=multiplier,
-            basis=info.basis, ebasis=info.ebasis, blocks=info.blocks, eblocks=info.eblocks,
-            I=info.I, J=info.J, cliques=info.cliques, tsupp=info.tsupp,
-            PSTAR_R=PSTAR_R
-        )
-        serialize("gate019r4_numeric_certificate.jls", cert)
-        cert_saved = true
-    end
-
-    result_text = "status=COMPLETED\ngate=019R5A\nsolver=SCS\ntermination_status=$(term)\nprimal_status=$(pstat)\ndual_status=$(dstat)\nrho=$(repr(rho_val))\npositive_certificate_candidate=$(candidate)\ncertificate_saved=$(cert_saved)\nmax_clique=$(maxclique)\nmax_block=$(maxblock)\naffine_identities=$(length(info.tsupp))\njump_variables=$(num_variables(model))\nelapsed_seconds=$(elapsed)\n"
-    println("GATE019R5A_TERMINATION_STATUS=", term)
-    println("GATE019R5A_PRIMAL_STATUS=", pstat)
-    println("GATE019R5A_DUAL_STATUS=", dstat)
-    println("GATE019R5A_RHO=", rho_val)
-    println("GATE019R5A_POSITIVE_CERTIFICATE_CANDIDATE=", candidate)
-    println("GATE019R5A_CERTIFICATE_SAVED=", cert_saved)
-    println("GATE019R5A_ELAPSED_SECONDS=", elapsed)
-catch err
-    bt = catch_backtrace()
-    result_text = "status=ERROR\ngate=019R5A\nsolver=SCS\nerror=$(sprint(showerror,err,bt))\n"
-    println("GATE019R5A_ERROR")
-    showerror(stdout,err,bt)
-    println()
 end
 
+result_text = run_gate()
 open("gate019r4_result.txt","w") do io
     write(io,result_text)
 end

@@ -1,18 +1,27 @@
 using DynamicPolynomials
 using TSSOS
 using JuMP
-using COSMO
+using SCS
+using MathOptInterface
 using LinearAlgebra
 using Printf
 using SHA
+using Serialization
+const MOI = MathOptInterface
 
-# Gate 019R4B: cross-check the same order-2 CS-TSSOS relaxation with COSMO.
-# The mathematical model/target is unchanged from run #11; only the SDP backend changes.
+# Gate 019R4C: certificate-readiness gate.
+# 1) Prove combinatorially that the sparse SOS template contains the trivial
+#    lower=0 decomposition of the objective. This prevents us from mistaking a
+#    floating solver's "primal infeasible" status for emptiness of the chart.
+# 2) Re-run the same order-2 relaxation with a 1e4 objective rescaling and SCS.
+# 3) If an optimal/almost-optimal SOS solution is returned, serialize the Gram
+#    matrices and equality multipliers needed for rational reconstruction.
 
 const N = 7
 const EDGES = [(i,j) for i in 1:N for j in i+1:N]
 const TRIS  = [(i,j,k) for i in 1:N for j in i+1:N for k in j+1:N]
 const EIDX  = Dict(e => a for (a,e) in enumerate(EDGES))
+const OBJ_SCALE = 1.0e4
 
 const TU_NUM = [
     (5,7), (0,-1), (9,-9), (-1,-15), (15,-2), (13,-13), (11,-7),
@@ -100,43 +109,75 @@ eq = vcat(
     [g[e][d] - 1.0*mu[e]*nvec(e)[d] for e in 1:21 for d in 1:3]
 )
 
-obj = sum(1.0*rr^2 for rr in r)
+base_obj = sum(1.0*rr^2 for rr in r)
+obj = OBJ_SCALE * base_obj
 vars = [nx; ny; nz; lamfree; mu; r]
 pop = [obj; ineq; eq]
 
+# ---------- Exact/combinatorial sanity audit of the sparse SOS template ----------
+# TSSOS's primal SDP seeks obj-lower = SOS + inequality SOS multipliers + equality
+# multipliers. At lower=0, obj itself is the explicit SOS OBJ_SCALE*sum(r_i^2).
+# We verify that every linear monomial r_i is present in a base-SOS block, so the
+# chosen sparse template really contains this known feasible point.
+function find_base_sos_slot(data, vid::Int)
+    target = UInt16[vid]
+    for i in eachindex(data.cliques)
+        j = findfirst(==(1), data.I[i]) # ineq_cons[1] is the constant polynomial 1
+        j === nothing && continue
+        for (l, block) in enumerate(data.blocks[i][j])
+            for k in block
+                if data.basis[i][j][k] == target
+                    return (clique=i, local_ineq=j, block=l, basis_index=k)
+                end
+            end
+        end
+    end
+    return nothing
+end
+
+println("GATE019R4C_STRUCTURE_AUDIT_START")
+_, _, structure = cs_tssos(pop, vars, 2;
+    numeq=length(eq), CS="MF", TS="MD", eqTS="MD",
+    MomentOne=false, solution=false, Gram=false, QUIET=true, solve=false)
+
+r_first = length(vars) - length(r) + 1
+slots = [find_base_sos_slot(structure, r_first + k - 1) for k in 1:length(r)]
+known_lower0_feasible = all(!isnothing, slots)
+missing_r = [k for k in 1:length(r) if isnothing(slots[k])]
+println("GATE019R4C_KNOWN_LOWER0_FEASIBLE=", known_lower0_feasible)
+println("GATE019R4C_MISSING_R_SLOTS=", missing_r)
+println("GATE019R4C_OBJECTIVE_SCALE=", OBJ_SCALE)
+flush(stdout)
+
 open("gate019r4_target.txt","w") do io
-    println(io, "Gate 019R4 fresh deterministic target")
+    println(io, "Gate 019R4C certificate-readiness target")
     println(io, "chart_index_1based=", Q)
     println(io, "chart_triangle=", TRIS[Q])
     println(io, "variables=", length(vars))
     println(io, "inequalities=", length(ineq))
     println(io, "equalities=", length(eq))
     println(io, "relaxation_order=2")
-    println(io, "solver=COSMO")
-    println(io, "solver_eps_abs=1e-5")
-    println(io, "solver_eps_rel=1e-5")
-    println(io, "solver_time_limit_seconds=4200")
+    println(io, "objective_scale=", OBJ_SCALE)
+    println(io, "solver=SCS")
+    println(io, "moment_one=false")
+    println(io, "known_lower0_feasible=", known_lower0_feasible)
+    println(io, "missing_r_slots=", missing_r)
     for (i,p) in enumerate(PSTAR_R)
         println(io, @sprintf("PSTAR[%02d]=%s", i, string(p)))
     end
 end
 
 println("GATE019R4_MODEL vars=$(length(vars)) ineq=$(length(ineq)) eq=$(length(eq)) chart=$(TRIS[Q])")
-println("objective_degree=2 max_constraint_degree=3 solver=COSMO")
+println("objective_degree=2 max_constraint_degree=3 solver=SCS objective_scale=$(OBJ_SCALE)")
 flush(stdout)
 
-# COSMO has its own chordal PSD decomposition enabled by default. Keep the same
-# 1e-5 target tolerances as run #11, but impose a 70-minute solver limit so the
-# workflow has time to serialize a receipt before GitHub's 90-minute job timeout.
-model = Model(optimizer_with_attributes(COSMO.Optimizer,
+model = Model(optimizer_with_attributes(SCS.Optimizer,
     "eps_abs" => 1.0e-5,
     "eps_rel" => 1.0e-5,
-    "max_iter" => 100000,
-    "time_limit" => 4200.0,
-    "verbose" => true,
-    "verbose_timing" => true))
+    "max_iters" => 40000,
+    "verbose" => 1))
 
-function run_scout(pop, vars, eq, model)
+function run_scout(pop, vars, eq, model, known_lower0_feasible)
     t0 = time()
     try
         opt, sol, data = cs_tssos(pop, vars, 2;
@@ -144,26 +185,47 @@ function run_scout(pop, vars, eq, model)
             CS="MF",
             TS="MD",
             eqTS="MD",
-            MomentOne=true,
+            MomentOne=false,
             solution=false,
-            Gram=false,
+            Gram=true,
             QUIET=false,
             model=model)
         elapsed = time()-t0
         term = termination_status(model)
         pstat = primal_status(model)
         dstat = dual_status(model)
-        result_text = "status=COMPLETED\nsolver=COSMO\ntermination_status=$(term)\nprimal_status=$(pstat)\ndual_status=$(dstat)\nopt_lower_bound=$(repr(opt))\nelapsed_seconds=$(elapsed)\n"
+        unscaled = isfinite(opt) ? opt / OBJ_SCALE : opt
+        solver_false_infeas = known_lower0_feasible && string(term) == "INFEASIBLE"
+        cert_saved = false
+        if string(term) in ("OPTIMAL", "ALMOST_OPTIMAL") && data.GramMat !== nothing
+            cert = (
+                chart=TRIS[Q], objective_scale=OBJ_SCALE,
+                opt_scaled=opt, opt_unscaled=unscaled,
+                termination_status=string(term),
+                primal_status=string(pstat), dual_status=string(dstat),
+                GramMat=data.GramMat, multiplier=data.multiplier,
+                basis=data.basis, ebasis=data.ebasis,
+                blocks=data.blocks, eblocks=data.eblocks,
+                I=data.I, J=data.J, cliques=data.cliques,
+                PSTAR_R=PSTAR_R
+            )
+            serialize("gate019r4_numeric_certificate.jls", cert)
+            cert_saved = true
+        end
+        result_text = "status=COMPLETED\nsolver=SCS\ntermination_status=$(term)\nprimal_status=$(pstat)\ndual_status=$(dstat)\nknown_lower0_feasible=$(known_lower0_feasible)\nsolver_false_infeasibility=$(solver_false_infeas)\nopt_scaled=$(repr(opt))\nopt_unscaled=$(repr(unscaled))\ncertificate_saved=$(cert_saved)\nelapsed_seconds=$(elapsed)\n"
         println("GATE019R4_TERMINATION_STATUS=", term)
         println("GATE019R4_PRIMAL_STATUS=", pstat)
         println("GATE019R4_DUAL_STATUS=", dstat)
-        println("GATE019R4_OPT_LOWER_BOUND=", opt)
+        println("GATE019R4_SOLVER_FALSE_INFEASIBILITY=", solver_false_infeas)
+        println("GATE019R4_OPT_SCALED=", opt)
+        println("GATE019R4_OPT_UNSCALED=", unscaled)
+        println("GATE019R4_CERTIFICATE_SAVED=", cert_saved)
         println("GATE019R4_ELAPSED_SECONDS=", elapsed)
         return result_text
     catch err
         elapsed = time()-t0
         bt = catch_backtrace()
-        result_text = "status=ERROR\nsolver=COSMO\nelapsed_seconds=$(elapsed)\nerror=$(sprint(showerror,err,bt))\n"
+        result_text = "status=ERROR\nsolver=SCS\nknown_lower0_feasible=$(known_lower0_feasible)\nelapsed_seconds=$(elapsed)\nerror=$(sprint(showerror,err,bt))\n"
         println("GATE019R4_ERROR")
         showerror(stdout,err,bt)
         println()
@@ -171,7 +233,7 @@ function run_scout(pop, vars, eq, model)
     end
 end
 
-result_text = run_scout(pop, vars, eq, model)
+result_text = run_scout(pop, vars, eq, model, known_lower0_feasible)
 
 open("gate019r4_result.txt","w") do io
     write(io,result_text)

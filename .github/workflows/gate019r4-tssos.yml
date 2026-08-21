@@ -36,7 +36,7 @@ jobs:
       - name: Install TSSOS and SCS
         shell: bash
         run: |
-          julia -e 'using Pkg; Pkg.add(url="https://github.com/wangjie212/TSSOS"); Pkg.add(["DynamicPolynomials","JuMP","SCS"]); Pkg.precompile()'
+          julia -e 'using Pkg; Pkg.add(url="https://github.com/wangjie212/TSSOS"); Pkg.add(["DynamicPolynomials","JuMP","SCS","MathOptInterface"]); Pkg.precompile()'
 
       - name: Run Gate 019R4C certificate-readiness scout
         run: julia gate019r4_tssos.jl
@@ -78,4 +78,4 @@ jobs:
             gate019r4_numeric_certificate.jls
           if-no-files-found: warn
 
-# Gate019R4C certificate-readiness trigger: 2026-08-20T18:17-06:00
+# Gate019R4C dependency-fix trigger: 2026-08-20T18:47-06:00

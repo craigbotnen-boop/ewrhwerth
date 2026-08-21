@@ -4,12 +4,13 @@ using JuMP
 using Printf
 using SHA
 
-# Gate 019R5C: direct 97-variable order-3 Positivstellensatz STRUCTURE scout.
+# Gate 019R5D: direct 97-variable order-3 Positivstellensatz STRUCTURE scout.
 # The 119 polynomial equalities are encoded as paired inequalities h>=0 and
-# -h>=0. This defines exactly the same feasible set, but avoids the very large
-# free equality-multiplier bases that dominate add_psatz! at order 3.
-# Any rho>0 certificate found in this restricted quadratic module is valid;
-# failure at this order would not imply feasibility.
+# -h>=0. This defines exactly the same feasible set. A positive rho certificate
+# is therefore valid, while failure of this restricted finite-order certificate
+# class is inconclusive. Gate 019R5C used TS="MD" and hit a CliqueTrees stack
+# overflow during chordal extension, so this scout uses TS="block" (connected
+# components of the term graph) to avoid that implementation bottleneck.
 
 const N = 7
 const EDGES = [(i,j) for i in 1:N for j in i+1:N]
@@ -109,13 +110,14 @@ function run_structure_scout()
     @variable(model, 0 <= rho <= 1)
     nonneg = -rho*(1.0 + nx[1]^2) + rho*nx[1]^2
 
-    println("GATE019R5C_MODEL vars=$(length(vars)) ineq=$(length(ineq)) eq=$(length(eq)) chart=$(TRIS[Q])")
-    println("GATE019R5C_ORIGINAL_EQUALITIES=119 paired_inequalities=238")
-    println("GATE019R5C_MAX_CONSTRAINT_DEGREE=4 relaxation_order=$(ORDER)")
+    println("GATE019R5D_MODEL vars=$(length(vars)) ineq=$(length(ineq)) eq=$(length(eq)) chart=$(TRIS[Q])")
+    println("GATE019R5D_ORIGINAL_EQUALITIES=119 paired_inequalities=238")
+    println("GATE019R5D_MAX_CONSTRAINT_DEGREE=4 relaxation_order=$(ORDER)")
+    println("GATE019R5D_TERM_SPARSITY=block")
     flush(stdout)
 
     info = add_psatz!(model, nonneg, vars, ineq, eq, ORDER;
-        CS="MF", TS="MD", eqTS=false, SO=1,
+        CS="MF", TS="block", eqTS=false, SO=1,
         GroebnerBasis=false, QUIET=false)
 
     blocksizes = Int[]
@@ -128,17 +130,17 @@ function run_structure_scout()
     psd_scalar_vars = sum(b*(b+1)÷2 for b in blocksizes)
     elapsed = time()-t0
 
-    println("GATE019R5C_MAX_CLIQUE=", maxclique)
-    println("GATE019R5C_MAX_BLOCK=", maxblock)
-    println("GATE019R5C_PSD_BLOCKS=", nblocks)
-    println("GATE019R5C_PSD_SCALAR_VARIABLES=", psd_scalar_vars)
-    println("GATE019R5C_AFFINE_IDENTITIES=", length(info.tsupp))
-    println("GATE019R5C_JUMP_VARIABLES=", num_variables(model))
-    println("GATE019R5C_BUILD_SECONDS=", elapsed)
+    println("GATE019R5D_MAX_CLIQUE=", maxclique)
+    println("GATE019R5D_MAX_BLOCK=", maxblock)
+    println("GATE019R5D_PSD_BLOCKS=", nblocks)
+    println("GATE019R5D_PSD_SCALAR_VARIABLES=", psd_scalar_vars)
+    println("GATE019R5D_AFFINE_IDENTITIES=", length(info.tsupp))
+    println("GATE019R5D_JUMP_VARIABLES=", num_variables(model))
+    println("GATE019R5D_BUILD_SECONDS=", elapsed)
     flush(stdout)
 
     open("gate019r4_target.txt","w") do io
-        println(io, "Gate 019R5C direct 97D order-3 paired-inequality Positivstellensatz structure scout")
+        println(io, "Gate 019R5D direct 97D order-3 paired-inequality Positivstellensatz block structure scout")
         println(io, "chart_index_1based=", Q)
         println(io, "chart_triangle=", TRIS[Q])
         println(io, "variables=", length(vars))
@@ -148,11 +150,12 @@ function run_structure_scout()
         println(io, "paired_inequalities=238")
         println(io, "relaxation_order=", ORDER)
         println(io, "CS=MF")
-        println(io, "TS=MD")
+        println(io, "TS=block")
         println(io, "eqTS=false")
         println(io, "SO=1")
         println(io, "GroebnerBasis=false")
         println(io, "representation=paired_inequalities_exact_same_feasible_set")
+        println(io, "finite_order_interpretation=positive_rho_valid_failure_inconclusive")
         for (i,p) in enumerate(PSTAR_R)
             println(io, @sprintf("PSTAR[%02d]=%s", i, string(p)))
         end
@@ -160,9 +163,10 @@ function run_structure_scout()
 
     open("gate019r4_result.txt","w") do io
         println(io, "status=COMPLETED")
-        println(io, "gate=019R5C")
+        println(io, "gate=019R5D")
         println(io, "mode=STRUCTURE_ONLY")
         println(io, "relaxation_order=", ORDER)
+        println(io, "term_sparsity=block")
         println(io, "max_clique=", maxclique)
         println(io, "max_block=", maxblock)
         println(io, "psd_blocks=", nblocks)
@@ -184,11 +188,11 @@ catch err
     bt = catch_backtrace()
     open("gate019r4_result.txt","w") do io
         println(io, "status=ERROR")
-        println(io, "gate=019R5C")
+        println(io, "gate=019R5D")
         println(io, "mode=STRUCTURE_ONLY")
         println(io, "error=", sprint(showerror, err, bt))
     end
-    println("GATE019R5C_ERROR")
+    println("GATE019R5D_ERROR")
     showerror(stdout, err, bt)
     println()
 end

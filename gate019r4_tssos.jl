@@ -9,13 +9,13 @@ using SHA
 using Serialization
 const MOI = MathOptInterface
 
-# Gate 019R4C: certificate-readiness gate.
-# 1) Prove combinatorially that the sparse SOS template contains the trivial
-#    lower=0 decomposition of the objective. This prevents us from mistaking a
-#    floating solver's "primal infeasible" status for emptiness of the chart.
-# 2) Re-run the same order-2 relaxation with a 1e4 objective rescaling and SCS.
-# 3) If an optimal/almost-optimal SOS solution is returned, serialize the Gram
-#    matrices and equality multipliers needed for rational reconstruction.
+# Gate 019R4C2: rescaled MomentOne certificate-readiness gate.
+# Run #16 proved that lower=0 is explicitly feasible in the sparse SOS template
+# and that the MomentOne=false relaxation sits numerically at zero. The only
+# earlier hint of positive separation came from the MomentOne=true relaxation,
+# so this gate restores MomentOne while keeping the 1e4 objective rescaling.
+# If an optimal/almost-optimal SOS solution is returned, serialize the Gram
+# matrices, equality multipliers, and moment data needed for exact follow-up.
 
 const N = 7
 const EDGES = [(i,j) for i in 1:N for j in i+1:N]
@@ -135,22 +135,22 @@ function find_base_sos_slot(data, vid::Int)
     return nothing
 end
 
-println("GATE019R4C_STRUCTURE_AUDIT_START")
+println("GATE019R4C2_STRUCTURE_AUDIT_START")
 _, _, structure = cs_tssos(pop, vars, 2;
     numeq=length(eq), CS="MF", TS="MD", eqTS="MD",
-    MomentOne=false, solution=false, Gram=false, QUIET=true, solve=false)
+    MomentOne=true, solution=false, Gram=false, QUIET=true, solve=false)
 
 r_first = length(vars) - length(r) + 1
 slots = [find_base_sos_slot(structure, r_first + k - 1) for k in 1:length(r)]
 known_lower0_feasible = all(!isnothing, slots)
 missing_r = [k for k in 1:length(r) if isnothing(slots[k])]
-println("GATE019R4C_KNOWN_LOWER0_FEASIBLE=", known_lower0_feasible)
-println("GATE019R4C_MISSING_R_SLOTS=", missing_r)
-println("GATE019R4C_OBJECTIVE_SCALE=", OBJ_SCALE)
+println("GATE019R4C2_KNOWN_LOWER0_FEASIBLE=", known_lower0_feasible)
+println("GATE019R4C2_MISSING_R_SLOTS=", missing_r)
+println("GATE019R4C2_OBJECTIVE_SCALE=", OBJ_SCALE)
 flush(stdout)
 
 open("gate019r4_target.txt","w") do io
-    println(io, "Gate 019R4C certificate-readiness target")
+    println(io, "Gate 019R4C2 rescaled MomentOne certificate-readiness target")
     println(io, "chart_index_1based=", Q)
     println(io, "chart_triangle=", TRIS[Q])
     println(io, "variables=", length(vars))
@@ -159,7 +159,7 @@ open("gate019r4_target.txt","w") do io
     println(io, "relaxation_order=2")
     println(io, "objective_scale=", OBJ_SCALE)
     println(io, "solver=SCS")
-    println(io, "moment_one=false")
+    println(io, "moment_one=true")
     println(io, "known_lower0_feasible=", known_lower0_feasible)
     println(io, "missing_r_slots=", missing_r)
     for (i,p) in enumerate(PSTAR_R)
@@ -168,7 +168,7 @@ open("gate019r4_target.txt","w") do io
 end
 
 println("GATE019R4_MODEL vars=$(length(vars)) ineq=$(length(ineq)) eq=$(length(eq)) chart=$(TRIS[Q])")
-println("objective_degree=2 max_constraint_degree=3 solver=SCS objective_scale=$(OBJ_SCALE)")
+println("objective_degree=2 max_constraint_degree=3 solver=SCS objective_scale=$(OBJ_SCALE) MomentOne=true")
 flush(stdout)
 
 model = Model(optimizer_with_attributes(SCS.Optimizer,
@@ -185,7 +185,7 @@ function run_scout(pop, vars, eq, model, known_lower0_feasible)
             CS="MF",
             TS="MD",
             eqTS="MD",
-            MomentOne=false,
+            MomentOne=true,
             solution=false,
             Gram=true,
             QUIET=false,
@@ -204,6 +204,7 @@ function run_scout(pop, vars, eq, model, known_lower0_feasible)
                 termination_status=string(term),
                 primal_status=string(pstat), dual_status=string(dstat),
                 GramMat=data.GramMat, multiplier=data.multiplier,
+                moment=data.moment, ksupp=data.ksupp,
                 basis=data.basis, ebasis=data.ebasis,
                 blocks=data.blocks, eblocks=data.eblocks,
                 I=data.I, J=data.J, cliques=data.cliques,
@@ -212,7 +213,7 @@ function run_scout(pop, vars, eq, model, known_lower0_feasible)
             serialize("gate019r4_numeric_certificate.jls", cert)
             cert_saved = true
         end
-        result_text = "status=COMPLETED\nsolver=SCS\ntermination_status=$(term)\nprimal_status=$(pstat)\ndual_status=$(dstat)\nknown_lower0_feasible=$(known_lower0_feasible)\nsolver_false_infeasibility=$(solver_false_infeas)\nopt_scaled=$(repr(opt))\nopt_unscaled=$(repr(unscaled))\ncertificate_saved=$(cert_saved)\nelapsed_seconds=$(elapsed)\n"
+        result_text = "status=COMPLETED\nsolver=SCS\ntermination_status=$(term)\nprimal_status=$(pstat)\ndual_status=$(dstat)\nmoment_one=true\nknown_lower0_feasible=$(known_lower0_feasible)\nsolver_false_infeasibility=$(solver_false_infeas)\nopt_scaled=$(repr(opt))\nopt_unscaled=$(repr(unscaled))\ncertificate_saved=$(cert_saved)\nelapsed_seconds=$(elapsed)\n"
         println("GATE019R4_TERMINATION_STATUS=", term)
         println("GATE019R4_PRIMAL_STATUS=", pstat)
         println("GATE019R4_DUAL_STATUS=", dstat)
@@ -225,7 +226,7 @@ function run_scout(pop, vars, eq, model, known_lower0_feasible)
     catch err
         elapsed = time()-t0
         bt = catch_backtrace()
-        result_text = "status=ERROR\nsolver=SCS\nknown_lower0_feasible=$(known_lower0_feasible)\nelapsed_seconds=$(elapsed)\nerror=$(sprint(showerror,err,bt))\n"
+        result_text = "status=ERROR\nsolver=SCS\nmoment_one=true\nknown_lower0_feasible=$(known_lower0_feasible)\nelapsed_seconds=$(elapsed)\nerror=$(sprint(showerror,err,bt))\n"
         println("GATE019R4_ERROR")
         showerror(stdout,err,bt)
         println()

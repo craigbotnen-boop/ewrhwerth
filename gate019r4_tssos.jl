@@ -1,26 +1,19 @@
 using DynamicPolynomials
 using TSSOS
 using JuMP
-using SCS
-using MathOptInterface
-using LinearAlgebra
 using Printf
 using SHA
-using Serialization
-const MOI = MathOptInterface
 
-# Gate 019R5A: direct 97-variable Positivstellensatz scout for chart (2,4,6).
-# Eliminate the 35 residual variables and the 21 radial multipliers mu_e.
-# Criticality is imposed directly as n_e x g_e = 0. Instead of asking a
-# feasibility solver for a fixed -1 certificate, maximize rho in [0,1] subject
-# to -rho lying in the sparse Putinar quadratic module + equality ideal.
-# rho=0 is an explicit feasible point; any robust rho>0 is a direct emptiness
-# certificate candidate, and exact rho>0 can be rescaled to a -1 certificate.
+# Gate 019R5B: direct 97-variable order-3 Positivstellensatz STRUCTURE scout.
+# This deliberately does not solve the SDP. It builds exactly the same reduced
+# chart (2,4,6) critical system as 019R5A, raises the Putinar relaxation order
+# from 2 to 3, and records the sparse problem size before we spend solver time.
 
 const N = 7
 const EDGES = [(i,j) for i in 1:N for j in i+1:N]
 const TRIS  = [(i,j,k) for i in 1:N for j in i+1:N for k in j+1:N]
 const EIDX  = Dict(e => a for (a,e) in enumerate(EDGES))
+const ORDER = 3
 
 const TU_NUM = [
     (5,7), (0,-1), (9,-9), (-1,-15), (15,-2), (13,-13), (11,-7),
@@ -104,112 +97,91 @@ eq = vcat(
 @assert length(ineq) == 34
 @assert length(eq) == 119
 
-open("gate019r4_target.txt","w") do io
-    println(io, "Gate 019R5A direct 97D Positivstellensatz scout")
-    println(io, "chart_index_1based=", Q)
-    println(io, "chart_triangle=", TRIS[Q])
-    println(io, "variables=", length(vars))
-    println(io, "inequalities=", length(ineq))
-    println(io, "equalities=", length(eq))
-    println(io, "sphere_equalities=21")
-    println(io, "target_equalities=35")
-    println(io, "cross_stationarity_equalities=63")
-    println(io, "relaxation_order=2")
-    println(io, "CS=MF")
-    println(io, "TS=MD")
-    println(io, "eqTS=MD")
-    println(io, "SO=1")
-    println(io, "GroebnerBasis=false")
-    println(io, "solver=SCS")
-    println(io, "rho_bounds=[0,1]")
-    for (i,p) in enumerate(PSTAR_R)
-        println(io, @sprintf("PSTAR[%02d]=%s", i, string(p)))
-    end
-end
-
-println("GATE019R5A_MODEL vars=$(length(vars)) ineq=$(length(ineq)) eq=$(length(eq)) chart=$(TRIS[Q])")
-println("GATE019R5A_MAX_CONSTRAINT_DEGREE=4 relaxation_order=2")
-flush(stdout)
-
-function run_gate()
-    model = Model(optimizer_with_attributes(SCS.Optimizer,
-        "eps_abs" => 1.0e-5,
-        "eps_rel" => 1.0e-5,
-        "eps_infeas" => 1.0e-7,
-        "max_iters" => 30000,
-        "verbose" => 1))
-
+function run_structure_scout()
+    t0 = time()
+    model = Model()
     @variable(model, 0 <= rho <= 1)
-    # Force a DynamicPolynomials polynomial with JuMP affine coefficients that is
-    # algebraically equal to -rho.
     nonneg = -rho*(1.0 + nx[1]^2) + rho*nx[1]^2
 
-    cert_saved = false
-    t0 = time()
-    try
-        info = add_psatz!(model, nonneg, vars, ineq, eq, 2;
-            CS="MF", TS="MD", eqTS="MD", SO=1,
-            GroebnerBasis=false, QUIET=false)
+    println("GATE019R5B_MODEL vars=$(length(vars)) ineq=$(length(ineq)) eq=$(length(eq)) chart=$(TRIS[Q])")
+    println("GATE019R5B_MAX_CONSTRAINT_DEGREE=4 relaxation_order=$(ORDER)")
+    flush(stdout)
 
-        blocksizes = Int[]
-        for i in eachindex(info.blocksize), j in eachindex(info.blocksize[i])
-            append!(blocksizes, info.blocksize[i][j])
+    info = add_psatz!(model, nonneg, vars, ineq, eq, ORDER;
+        CS="MF", TS="MD", eqTS="MD", SO=1,
+        GroebnerBasis=false, QUIET=false)
+
+    blocksizes = Int[]
+    for i in eachindex(info.blocksize), j in eachindex(info.blocksize[i])
+        append!(blocksizes, info.blocksize[i][j])
+    end
+    maxclique = isempty(info.cliquesize) ? 0 : maximum(info.cliquesize)
+    maxblock = isempty(blocksizes) ? 0 : maximum(blocksizes)
+    nblocks = length(blocksizes)
+    psd_scalar_vars = sum(b*(b+1)÷2 for b in blocksizes)
+    eq_multiplier_vars = sum(length(info.multiplier[i][j]) for i in eachindex(info.multiplier) for j in eachindex(info.multiplier[i]))
+    elapsed = time()-t0
+
+    println("GATE019R5B_MAX_CLIQUE=", maxclique)
+    println("GATE019R5B_MAX_BLOCK=", maxblock)
+    println("GATE019R5B_PSD_BLOCKS=", nblocks)
+    println("GATE019R5B_PSD_SCALAR_VARIABLES=", psd_scalar_vars)
+    println("GATE019R5B_EQUALITY_MULTIPLIER_VARIABLES=", eq_multiplier_vars)
+    println("GATE019R5B_AFFINE_IDENTITIES=", length(info.tsupp))
+    println("GATE019R5B_JUMP_VARIABLES=", num_variables(model))
+    println("GATE019R5B_BUILD_SECONDS=", elapsed)
+    flush(stdout)
+
+    open("gate019r4_target.txt","w") do io
+        println(io, "Gate 019R5B direct 97D order-3 Positivstellensatz structure scout")
+        println(io, "chart_index_1based=", Q)
+        println(io, "chart_triangle=", TRIS[Q])
+        println(io, "variables=", length(vars))
+        println(io, "inequalities=", length(ineq))
+        println(io, "equalities=", length(eq))
+        println(io, "relaxation_order=", ORDER)
+        println(io, "CS=MF")
+        println(io, "TS=MD")
+        println(io, "eqTS=MD")
+        println(io, "SO=1")
+        println(io, "GroebnerBasis=false")
+        for (i,p) in enumerate(PSTAR_R)
+            println(io, @sprintf("PSTAR[%02d]=%s", i, string(p)))
         end
-        maxclique = isempty(info.cliquesize) ? 0 : maximum(info.cliquesize)
-        maxblock = isempty(blocksizes) ? 0 : maximum(blocksizes)
-        println("GATE019R5A_MAX_CLIQUE=", maxclique)
-        println("GATE019R5A_MAX_BLOCK=", maxblock)
-        println("GATE019R5A_AFFINE_IDENTITIES=", length(info.tsupp))
-        println("GATE019R5A_JUMP_VARIABLES=", num_variables(model))
-        flush(stdout)
+    end
 
-        @objective(model, Max, rho)
-        optimize!(model)
-        elapsed = time()-t0
-        term = termination_status(model)
-        pstat = primal_status(model)
-        dstat = dual_status(model)
-        rho_val = has_values(model) ? value(rho) : NaN
-        candidate = isfinite(rho_val) && rho_val > 1.0e-4 && string(term) in ("OPTIMAL", "ALMOST_OPTIMAL")
+    open("gate019r4_result.txt","w") do io
+        println(io, "status=COMPLETED")
+        println(io, "gate=019R5B")
+        println(io, "mode=STRUCTURE_ONLY")
+        println(io, "relaxation_order=", ORDER)
+        println(io, "max_clique=", maxclique)
+        println(io, "max_block=", maxblock)
+        println(io, "psd_blocks=", nblocks)
+        println(io, "psd_scalar_variables=", psd_scalar_vars)
+        println(io, "equality_multiplier_variables=", eq_multiplier_vars)
+        println(io, "affine_identities=", length(info.tsupp))
+        println(io, "jump_variables=", num_variables(model))
+        println(io, "build_seconds=", elapsed)
+    end
 
-        if candidate
-            GramMat = [[[value.(info.GramMat[i][j][l]) for l in eachindex(info.GramMat[i][j])]
-                        for j in eachindex(info.GramMat[i])] for i in eachindex(info.GramMat)]
-            multiplier = [[value.(info.multiplier[i][j]) for j in eachindex(info.multiplier[i])]
-                          for i in eachindex(info.multiplier)]
-            cert = (
-                gate="019R5A", chart=TRIS[Q], rho=rho_val,
-                termination_status=string(term), primal_status=string(pstat), dual_status=string(dstat),
-                GramMat=GramMat, multiplier=multiplier,
-                basis=info.basis, ebasis=info.ebasis, blocks=info.blocks, eblocks=info.eblocks,
-                I=info.I, J=info.J, cliques=info.cliques, tsupp=info.tsupp,
-                PSTAR_R=PSTAR_R
-            )
-            serialize("gate019r4_numeric_certificate.jls", cert)
-            cert_saved = true
-        end
-
-        result_text = "status=COMPLETED\ngate=019R5A\nsolver=SCS\ntermination_status=$(term)\nprimal_status=$(pstat)\ndual_status=$(dstat)\nrho=$(repr(rho_val))\npositive_certificate_candidate=$(candidate)\ncertificate_saved=$(cert_saved)\nmax_clique=$(maxclique)\nmax_block=$(maxblock)\naffine_identities=$(length(info.tsupp))\njump_variables=$(num_variables(model))\nelapsed_seconds=$(elapsed)\n"
-        println("GATE019R5A_TERMINATION_STATUS=", term)
-        println("GATE019R5A_PRIMAL_STATUS=", pstat)
-        println("GATE019R5A_DUAL_STATUS=", dstat)
-        println("GATE019R5A_RHO=", rho_val)
-        println("GATE019R5A_POSITIVE_CERTIFICATE_CANDIDATE=", candidate)
-        println("GATE019R5A_CERTIFICATE_SAVED=", cert_saved)
-        println("GATE019R5A_ELAPSED_SECONDS=", elapsed)
-        return result_text
-    catch err
-        bt = catch_backtrace()
-        return "status=ERROR\ngate=019R5A\nsolver=SCS\nerror=$(sprint(showerror,err,bt))\n"
+    target_bytes = read("gate019r4_target.txt")
+    open("gate019r4_sha256.txt","w") do io
+        println(io, bytes2hex(sha256(target_bytes)), "  gate019r4_target.txt")
     end
 end
 
-result_text = run_gate()
-open("gate019r4_result.txt","w") do io
-    write(io,result_text)
-end
-
-target_bytes = read("gate019r4_target.txt")
-open("gate019r4_sha256.txt","w") do io
-    println(io, bytes2hex(sha256(target_bytes)), "  gate019r4_target.txt")
+try
+    run_structure_scout()
+catch err
+    bt = catch_backtrace()
+    open("gate019r4_result.txt","w") do io
+        println(io, "status=ERROR")
+        println(io, "gate=019R5B")
+        println(io, "mode=STRUCTURE_ONLY")
+        println(io, "error=", sprint(showerror, err, bt))
+    end
+    println("GATE019R5B_ERROR")
+    showerror(stdout, err, bt)
+    println()
 end

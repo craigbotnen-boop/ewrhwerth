@@ -4,10 +4,12 @@ using JuMP
 using Printf
 using SHA
 
-# Gate 019R5B: direct 97-variable order-3 Positivstellensatz STRUCTURE scout.
-# This deliberately does not solve the SDP. It builds exactly the same reduced
-# chart (2,4,6) critical system as 019R5A, raises the Putinar relaxation order
-# from 2 to 3, and records the sparse problem size before we spend solver time.
+# Gate 019R5C: direct 97-variable order-3 Positivstellensatz STRUCTURE scout.
+# The 119 polynomial equalities are encoded as paired inequalities h>=0 and
+# -h>=0. This defines exactly the same feasible set, but avoids the very large
+# free equality-multiplier bases that dominate add_psatz! at order 3.
+# Any rho>0 certificate found in this restricted quadratic module is valid;
+# failure at this order would not imply feasibility.
 
 const N = 7
 const EDGES = [(i,j) for i in 1:N for j in i+1:N]
@@ -88,14 +90,18 @@ end
 g = [[grad_component(e,d) for d in 1:3] for e in 1:21]
 stationarity = [crossp(nvec(e), g[e])[d] for e in 1:21 for d in 1:3]
 
-ineq = [1.0 - l^2 for l in lamfree]
-eq = vcat(
+eqraw = vcat(
     [1.0*nx[e]^2 + ny[e]^2 + nz[e]^2 - 1.0 for e in 1:21],
     [F[t] - PSTAR[t] for t in 1:35],
     stationarity
 )
-@assert length(ineq) == 34
-@assert length(eq) == 119
+@assert length(eqraw) == 119
+
+lambda_bounds = [1.0 - l^2 for l in lamfree]
+ineq = vcat(lambda_bounds, eqraw, [-p for p in eqraw])
+eq = eltype(eqraw)[]
+@assert length(ineq) == 272
+@assert isempty(eq)
 
 function run_structure_scout()
     t0 = time()
@@ -103,12 +109,13 @@ function run_structure_scout()
     @variable(model, 0 <= rho <= 1)
     nonneg = -rho*(1.0 + nx[1]^2) + rho*nx[1]^2
 
-    println("GATE019R5B_MODEL vars=$(length(vars)) ineq=$(length(ineq)) eq=$(length(eq)) chart=$(TRIS[Q])")
-    println("GATE019R5B_MAX_CONSTRAINT_DEGREE=4 relaxation_order=$(ORDER)")
+    println("GATE019R5C_MODEL vars=$(length(vars)) ineq=$(length(ineq)) eq=$(length(eq)) chart=$(TRIS[Q])")
+    println("GATE019R5C_ORIGINAL_EQUALITIES=119 paired_inequalities=238")
+    println("GATE019R5C_MAX_CONSTRAINT_DEGREE=4 relaxation_order=$(ORDER)")
     flush(stdout)
 
     info = add_psatz!(model, nonneg, vars, ineq, eq, ORDER;
-        CS="MF", TS="MD", eqTS="MD", SO=1,
+        CS="MF", TS="MD", eqTS=false, SO=1,
         GroebnerBasis=false, QUIET=false)
 
     blocksizes = Int[]
@@ -119,32 +126,33 @@ function run_structure_scout()
     maxblock = isempty(blocksizes) ? 0 : maximum(blocksizes)
     nblocks = length(blocksizes)
     psd_scalar_vars = sum(b*(b+1)÷2 for b in blocksizes)
-    eq_multiplier_vars = sum(length(info.multiplier[i][j]) for i in eachindex(info.multiplier) for j in eachindex(info.multiplier[i]))
     elapsed = time()-t0
 
-    println("GATE019R5B_MAX_CLIQUE=", maxclique)
-    println("GATE019R5B_MAX_BLOCK=", maxblock)
-    println("GATE019R5B_PSD_BLOCKS=", nblocks)
-    println("GATE019R5B_PSD_SCALAR_VARIABLES=", psd_scalar_vars)
-    println("GATE019R5B_EQUALITY_MULTIPLIER_VARIABLES=", eq_multiplier_vars)
-    println("GATE019R5B_AFFINE_IDENTITIES=", length(info.tsupp))
-    println("GATE019R5B_JUMP_VARIABLES=", num_variables(model))
-    println("GATE019R5B_BUILD_SECONDS=", elapsed)
+    println("GATE019R5C_MAX_CLIQUE=", maxclique)
+    println("GATE019R5C_MAX_BLOCK=", maxblock)
+    println("GATE019R5C_PSD_BLOCKS=", nblocks)
+    println("GATE019R5C_PSD_SCALAR_VARIABLES=", psd_scalar_vars)
+    println("GATE019R5C_AFFINE_IDENTITIES=", length(info.tsupp))
+    println("GATE019R5C_JUMP_VARIABLES=", num_variables(model))
+    println("GATE019R5C_BUILD_SECONDS=", elapsed)
     flush(stdout)
 
     open("gate019r4_target.txt","w") do io
-        println(io, "Gate 019R5B direct 97D order-3 Positivstellensatz structure scout")
+        println(io, "Gate 019R5C direct 97D order-3 paired-inequality Positivstellensatz structure scout")
         println(io, "chart_index_1based=", Q)
         println(io, "chart_triangle=", TRIS[Q])
         println(io, "variables=", length(vars))
         println(io, "inequalities=", length(ineq))
         println(io, "equalities=", length(eq))
+        println(io, "original_equalities=119")
+        println(io, "paired_inequalities=238")
         println(io, "relaxation_order=", ORDER)
         println(io, "CS=MF")
         println(io, "TS=MD")
-        println(io, "eqTS=MD")
+        println(io, "eqTS=false")
         println(io, "SO=1")
         println(io, "GroebnerBasis=false")
+        println(io, "representation=paired_inequalities_exact_same_feasible_set")
         for (i,p) in enumerate(PSTAR_R)
             println(io, @sprintf("PSTAR[%02d]=%s", i, string(p)))
         end
@@ -152,14 +160,13 @@ function run_structure_scout()
 
     open("gate019r4_result.txt","w") do io
         println(io, "status=COMPLETED")
-        println(io, "gate=019R5B")
+        println(io, "gate=019R5C")
         println(io, "mode=STRUCTURE_ONLY")
         println(io, "relaxation_order=", ORDER)
         println(io, "max_clique=", maxclique)
         println(io, "max_block=", maxblock)
         println(io, "psd_blocks=", nblocks)
         println(io, "psd_scalar_variables=", psd_scalar_vars)
-        println(io, "equality_multiplier_variables=", eq_multiplier_vars)
         println(io, "affine_identities=", length(info.tsupp))
         println(io, "jump_variables=", num_variables(model))
         println(io, "build_seconds=", elapsed)
@@ -177,11 +184,11 @@ catch err
     bt = catch_backtrace()
     open("gate019r4_result.txt","w") do io
         println(io, "status=ERROR")
-        println(io, "gate=019R5B")
+        println(io, "gate=019R5C")
         println(io, "mode=STRUCTURE_ONLY")
         println(io, "error=", sprint(showerror, err, bt))
     end
-    println("GATE019R5B_ERROR")
+    println("GATE019R5C_ERROR")
     showerror(stdout, err, bt)
     println()
 end

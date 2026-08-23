@@ -1,0 +1,10 @@
+gate,observable,control,h_values,fit_exponent,R2,status,notes
+Z5K,Schur-corrected gauge defect,generic tilted 24-simplex,"0.09;0.065;0.045",3.99975153,0.9999999951,PASS,"Includes physical-sector pseudoinverse backreaction"
+Z8C,Neighboring same-boundary ordering defect,generic algebraic curvature control 1,"0.09;0.065;0.045",6.00025551,0.99999999993,PASS,"48-simplex ordering comparison; same 84-face boundary"
+Z8D,Finite-move-normalized neighboring anomaly,generic algebraic curvature control 1,"0.09;0.065;0.045",4.00025551,0.99999999984,PASS,"DeltaS divided by two O(h) tent displacements"
+Z8E,Curvature-amplitude scaling,generic algebraic curvature control 1,"A=0.5;1;1.5;2",2.00025031,0.99999999936,PASS,"Ordering defect quadratic in curvature amplitude"
+Z7C,Periodic arbitrary-smearing assembly,variable local coefficient,"n=6;8;10;12;16;20",4.00000000,1.0,PASS,"Constant-coefficient test; variable-coefficient tests also ~4"
+Z11B,Independent neighboring ordering replication,fresh full-rank algebraic curvature,"0.09;0.065;0.045",6.00303660,0.9999999902,PASS,"Independent Bianchi-satisfying 6x6 curvature operator"
+Z11C,Independent finite-move-normalized replication,fresh full-rank algebraic curvature,"0.09;0.065;0.045",4.00303660,0.9999999780,PASS,"Independent curvature control"
+Z10G,FK metric structure function,matched adjacent x/y/z tents,"epsilon=1e-4;1e-5;1e-6",,,PASS,"Direct normal commutator; g=A^-1 and g^-1=A; exact axis permutation covariance"
+RET,Difference-action boundary derivative,direct adjacent tents,"0.09;0.065;0.045",4.99990758,0.999999999987,RETIRED,"Wrong observable for shift direction; retained for audit"

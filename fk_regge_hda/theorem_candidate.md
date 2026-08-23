@@ -1,177 +1,212 @@
 # Perturbative fourth-order restoration theorem candidate
 
-## Dimensionless setup
+## Scope and normalization
 
-Work with normalized edge variables \(\hat l=l/h\) and the dimensionless reduced Hamilton principal function
+The proof is organized in two stages.
 
-\[
-\widehat S_h(\hat l_B)=h^{-2}S_h(h\hat l_B,z_h(h\hat l_B)),
-\]
+1. A **covariant/intermediate-slice theorem**: the Regge Bianchi identity forces the corrected gauge row of the Hessian at an interior stationary vertex to be O(h^4).
+2. A **canonical bridge**: the standard tent-move identity of Bahr--Dittrich transfers this estimate to the old/new mixed Lagrangian Hessian, under a bounded stationary-response hypothesis.
 
-where internal tent variables \(z_h\) are eliminated by their exact stationarity equations. All Hessians below are taken with respect to the normalized boundary variables \(\hat l_B\).
+This distinction is essential because derivatives of a Hamilton principal function with respect to boundary data are boundary momenta and are not set to zero by the bulk equations of motion.
 
-## Hypotheses
+Work with normalized edge variables \(\hat l=l/h\) and dimensionless actions \(\widehat S=h^{-2}S\). This removes trivial length dimensions from the Hessians.
 
-Let \(T_h\) be a family of four-dimensional FK/Regge tent complexes approximating a smooth metric \(g\) on a convex normal neighborhood. Assume:
+## Geometric hypotheses
 
-1. **Smooth background.** \(g\in C^8\) on the neighborhood, with uniform bounds on the derivatives needed for the world-function expansion.
-2. **Shape regularity / fatness.** After rescaling each simplex by \(h^{-1}\), all edge-Gram eigenvalues lie in a fixed interval \([\lambda_*,\lambda^*]\subset(0,\infty)\). Equivalently, simplex aspect ratios and normalized volumes are uniformly controlled.
-3. **Nondegenerate tent reduction.** The internal stationary point is locally unique and the internal Hessian block obeys \(\sigma_{\min}(H_{II})\ge \tau>0\) uniformly.
-4. **Curvature scaling.** Hinge holonomy/deficit variables satisfy, uniformly on each local star,
+Let \(T_h\) be a family of four-dimensional FK/Regge tent complexes approximating a smooth metric \(g\) in a convex normal neighborhood. Assume:
+
+1. **Smooth background:** \(g\in C^8\), with uniform derivative bounds sufficient for the required world-function expansion. This is deliberately conservative.
+2. **Shape regularity / fatness:** after rescaling each simplex by \(h^{-1}\), all edge-Gram eigenvalues lie in a fixed interval \([\lambda_*,\lambda^*]\subset(0,\infty)\).
+3. **Tent-pole nondegeneracy:** internal tent variables are locally eliminated by stationarity and the corresponding internal Hessian blocks have singular values bounded below by \(\tau>0\).
+4. **Curvature scaling:** hinge holonomy/deficit variables obey
    \[
    \epsilon_h=h^2R+h^3G+O(h^4),
    \qquad
-   \delta_Y\epsilon_h=h^2A_Y+h^3B_Y+O(h^4).
+   \delta_Y\epsilon_h=h^2A_Y+h^3B_Y+O(h^4),
    \]
-5. **Reduced principal-map expansion.** The dimensionless reduced Hessian has a uniform expansion
+   uniformly on each local star.
+5. **Uniform reduced-Hessian expansion:** after tent-pole elimination, the middle-slice Hessian has
    \[
-   M_h=M_0+h^2M_2+h^3M_3+h^4M_4+R_5(h),
+   H_h=H_0+h^2H_2+h^3H_3+h^4H_4+R_5(h),
    \qquad \|R_5(h)\|\le C_5h^5.
    \]
-6. **Flat gauge splitting.** The flat operator \(M_0\) has a fixed four-dimensional left/right gauge kernel, with corresponding projections \(P_L,P_R\), and the complementary physical block \(A_0\) satisfies
+6. **Flat gauge splitting:** \(H_0\) has the four expected vertex-displacement gauge directions. In a left/right physical-gauge adapted basis, its physical block \(A_0\) obeys
    \[
-   \sigma_{\min}(A_0)\ge \gamma>0.
+   \sigma_{\min}(A_0)\ge\gamma>0.
    \]
-7. **Bounded coefficient norms.** \(\|M_j\|\le C_j\) for \(j=2,3,4\), uniformly for sufficiently small \(h\).
-8. **Periodic/global assembly.** Smearings \(N,M\) are uniformly bounded in \(C^1\), interpolation is stable on the shape-regular family, and the physical spatial volume is fixed.
+7. **Uniform coefficient bounds:** \(\|H_j\|\le C_j\) for \(j=2,3,4\).
 
-The \(C^8\) assumption is deliberately conservative; lowering the regularity threshold is not needed for the first theorem.
+A separate bounded-response hypothesis is introduced only when passing to the canonical mixed matrix.
 
-## Theorem: local gauge-block restoration
+# I. Covariant/intermediate-slice theorem
 
-Let \(E=d\widehat S_h/d\hat l\), \(H=d^2\widehat S_h/d\hat l^2\), and let \(Y_A\) be a normalized vertex-displacement field. Define the contracted Regge Bianchi quantity
+Consider two consecutive tent moves. After eliminating the tent poles, let
 
 \[
-B_A=Y_A\cdot E.
+\widetilde S_h(l^{n-1},l^n,l^{n+1})
+\]
+
+be the effective two-step Regge action. The middle-slice variables \(l^n\) are bulk variables and satisfy the stationary Regge equations
+
+\[
+E_h:=\frac{\partial\widetilde S_h}{\partial l^n}=0.
+\]
+
+Let
+
+\[
+H_h:=\frac{\partial^2\widetilde S_h}{\partial l^n\partial l^n}
+\]
+
+be the middle-slice Hessian.
+
+## Lemma 1: contracted Bianchi identity gives an O(h^4) gauge-gauge block
+
+For a normalized vertex-displacement field \(Y_A\), define
+
+\[
+B_A=Y_A\cdot E_h.
 \]
 
 The exact differential identity is
 
 \[
-Y_B[B_A]=(\nabla_{Y_B}Y_A)\cdot E+Y_A^THY_B.
+Y_B[B_A]=(\nabla_{Y_B}Y_A)\cdot E_h+Y_A^TH_hY_B.
 \]
 
-On shell, \(E=0\), hence
+At a stationary middle slice, \(E_h=0\), hence
 
 \[
-Y_A^THY_B=Y_B[B_A].
+Y_A^TH_hY_B=Y_B[B_A].
 \]
 
-For a hinge triangle \(h=(v,a,b)\), writing \(u=a-v\), \(w=b-v\), \(d_h=a-b\), and \(U_h=(u\wedge w)/|u\wedge w|\), one has
+For a hinge triangle \(h=(v,a,b)\), write
 
 \[
-\nabla_vA_h=\frac12U_h\cdot d_h.
+u=a-v,\qquad w=b-v,\qquad d_h=a-b,\qquad U_h=\frac{u\wedge w}{|u\wedge w|}.
+\]
+
+The area-gradient identity is
+
+\[
+\nabla_vA_h=\frac12 U_h\cdot d_h.
 \]
 
 Using the Schlaefli-reduced Regge equations,
 
 \[
-Y_\xi\cdot E
+Y_\xi\cdot E_h
 =
 \frac12\xi_\mu\sum_{h\supset v}\epsilon_hU_h^{\mu\nu}(a-b)_\nu.
 \]
 
-The linearized contracted Regge Bianchi identity annihilates the term linear in the deficits, while the exact nonlinear identity contains quadratic and higher curvature terms. Therefore
+The linearized contracted Regge Bianchi identity annihilates the term linear in the deficits; the exact nonlinear identity contains quadratic and higher curvature terms. Hence
 
 \[
 B_A=O(\epsilon^2).
 \]
 
-Together with \(\epsilon_h=O(h^2)\) and \(\delta_Y\epsilon_h=O(h^2)\), this gives
+Because \(\epsilon_h=O(h^2)\) and \(\delta_Y\epsilon_h=O(h^2)\),
 
 \[
-Y_A^THY_B=O(h^4).
+Y_B[B_A]=O(h^4),
 \]
 
-Consequently
+and therefore
 
 \[
-P_LM_hP_R=O(h^4),
+\boxed{Y_A^TH_hY_B=O(h^4)}.
 \]
 
-and coefficient comparison yields
+In particular, if \(P_L,P_R\) project onto the flat left/right gauge spaces,
 
 \[
-\boxed{P_LM_2P_R=0},
+P_LH_hP_R=O(h^4),
+\]
+
+so coefficient comparison gives
+
+\[
+\boxed{P_LH_2P_R=0},
 \qquad
-\boxed{P_LM_3P_R=0}.
+\boxed{P_LH_3P_R=0}.
 \]
 
-## Corrected gauge vector
+## Lemma 2: corrected gauge rows and columns
 
-Choose a corrected right gauge vector
+In a physical/gauge adapted block basis,
 
 \[
-X(h)=X^{(0)}+h^2X^{(2)}+h^3X^{(3)}+O(h^4),
-\qquad X^{(0)}\in\operatorname{Ran}P_R.
+H_0=\begin{pmatrix}A_0&0\\0&0\end{pmatrix}.
 \]
 
-Solving the physical equations order by order gives
+The O(h^2) and O(h^3) gauge-to-physical mixing can be removed perturbatively. Corrected right gauge vectors satisfy
 
 \[
-\boxed{X^{(2)}=-M_0^+M_2X^{(0)}},
-\]
-
-\[
-\boxed{X^{(3)}=-M_0^+M_3X^{(0)}}.
-\]
-
-The first nonzero gauge residual occurs at fourth order:
-
-\[
-P_LM_hX(h)
-=
-h^4K_4^{\mathrm{eff}}X^{(0)}+O(h^5),
+X_R(h)=X_R^{(0)}+h^2X_R^{(2)}+h^3X_R^{(3)}+O(h^4),
 \]
 
 with
 
 \[
+X_R^{(2)}=-H_0^+H_2X_R^{(0)},
+\qquad
+X_R^{(3)}=-H_0^+H_3X_R^{(0)}.
+\]
+
+Analogously, corrected left gauge vectors satisfy
+
+\[
+X_L(h)^T=X_L^{(0)T}+h^2X_L^{(2)T}+h^3X_L^{(3)T}+O(h^4),
+\]
+
+with the corresponding left Schur corrections.
+
+The full corrected row/column residuals are O(h^4), not merely their gauge-gauge matrix elements. Their leading gauge obstruction is the Schur term
+
+\[
 \boxed{
-K_4^{\mathrm{eff}}
+\mathcal G_4^{\rm eff}
 =
-P_L\left(M_4-M_2M_0^+M_2\right)P_R.
+P_L\left(H_4-H_2H_0^+H_2\right)P_R.
 }
 \]
 
-The \(h^3\) curvature-gradient mixing affects \(X^{(3)}\) and the \(h^5\) remainder, but not the leading \(K_4^{\mathrm{eff}}\) obstruction.
+The h^3 curvature-gradient sector changes the corrected gauge vectors and the h^5 remainder, but does not enter \(\mathcal G_4^{\rm eff}\).
 
-## Stationary reduction lemma
+A symbolic 2-physical + 1-gauge calculation verifies zero corrected-row coefficients through h^3 and exactly the Schur coefficient at h^4.
 
-If the unreduced Hessian is block-partitioned into boundary/internal variables,
+## Lemma 3: internal tent-pole elimination preserves the quadratic estimate
 
-\[
-H_{\mathrm{full}}=
-\begin{pmatrix}
-H_{BB}&H_{BI}\\
-H_{IB}&H_{II}
-\end{pmatrix},
-\]
-
-then the reduced Hessian is
+For a full Hessian partitioned into boundary/intermediate variables B and eliminated internal variables I,
 
 \[
-H_{\mathrm{red}}=H_{BB}-H_{BI}H_{II}^{-1}H_{IB}.
+H_{\rm full}=\begin{pmatrix}H_{BB}&H_{BI}\\H_{IB}&H_{II}\end{pmatrix},
 \]
 
-For a boundary displacement \(Y_B\), the stationary lift satisfies
+the stationary reduced Hessian is
+
+\[
+H_{\rm red}=H_{BB}-H_{BI}H_{II}^{-1}H_{IB}.
+\]
+
+For the stationary lift
 
 \[
 Y_I=-H_{II}^{-1}H_{IB}Y_B,
 \]
 
-and exactly
+one has exactly
 
 \[
-Y_{\mathrm{full}}^TH_{\mathrm{full}}Y_{\mathrm{full}}
-=Y_B^TH_{\mathrm{red}}Y_B.
+Y_{\rm full}^TH_{\rm full}Y_{\rm full}=Y_B^TH_{\rm red}Y_B.
 \]
 
-Hence the Bianchi/Hessian estimate descends unchanged through exact tent-variable elimination.
+Therefore the Bianchi/Hessian order survives exact tent-pole elimination.
 
-## Uniform norm bound
+## Uniform local bound
 
-If \(\|A_h-A_0\|\le C_Ah^2\), Weyl's inequality gives
+Weyl's inequality gives, if \(\|A_h-A_0\|\le C_Ah^2\),
 
 \[
 \sigma_{\min}(A_h)\ge\gamma-C_Ah^2.
@@ -180,10 +215,10 @@ If \(\|A_h-A_0\|\le C_Ah^2\), Weyl's inequality gives
 For \(h^2\le\gamma/(2C_A)\),
 
 \[
-\|A_h^+\|\le\frac{2}{\gamma}.
+\|A_h^+\|\le\frac2\gamma.
 \]
 
-At the flat-order level,
+At flat order,
 
 \[
 \|X^{(2)}\|\le\frac{C_2}{\gamma},
@@ -195,24 +230,87 @@ and
 
 \[
 \boxed{
-\|K_4^{\mathrm{eff}}\|
+\|\mathcal G_4^{\rm eff}\|
 \le C_4+\frac{C_2^2}{\gamma}.
 }
 \]
 
-A convenient explicit local residual estimate is
+A convenient corrected-row estimate is
 
 \[
-\|P_LM_hX(h)\|
+\|X_L(h)^TH_h\|
 \le
 h^4\left(C_4+\frac{C_2^2}{\gamma}\right)
 +h^5\left(C_5+\frac{2C_2C_3}{\gamma}\right)
 +O(h^6).
 \]
 
-## Fixed-volume corollary
+# II. Canonical mixed-matrix bridge
 
-If the local defect is interpreted as a cell density and integrated with cell volume \(O(h^3)\), then each cell contributes \(O(h^7)\). Shape regularity implies \(O(h^{-3})\) cells in a fixed physical three-volume. Therefore, for bounded \(C^1\) smearings,
+Let the middle-slice stationary solution be
+
+\[
+l^n=L_h(l^{n-1},l^{n+1}).
+\]
+
+Differentiating the middle-slice equations with respect to the upper boundary gives the standard tent-move identity
+
+\[
+\boxed{H_h\,\mathscr L_h=-K_h},
+\]
+
+where
+
+\[
+\mathscr L_h:=\frac{\partial L_h}{\partial l^{n+1}},
+\qquad
+K_h:=\frac{\partial^2\widetilde S_{(n,n+1)}}{\partial l^n\partial l^{n+1}}.
+\]
+
+The matrix \(K_h\) is the discrete Lagrangian two-form / mixed canonical matrix controlling the Legendre transform. This is the precise covariant-to-canonical bridge derived in the tent-move literature.
+
+## Additional canonical-response hypothesis
+
+Assume there is a chosen smooth stationary branch (or gauge-fixed continuation from the flat family) for which
+
+\[
+\boxed{\|\mathscr L_h\|\le C_L}
+\]
+
+uniformly for sufficiently small h.
+
+Then the corrected left gauge row obeys
+
+\[
+X_L(h)^TK_h
+=-X_L(h)^TH_h\mathscr L_h,
+\]
+
+so
+
+\[
+\boxed{
+\|X_L(h)^TK_h\|
+\le
+C_L\left(C_4+\frac{C_2^2}{\gamma}\right)h^4+O(h^5).
+}
+\]
+
+The time-reversed/lower-boundary relation gives the analogous corrected right-gauge estimate.
+
+Thus, **under the bounded stationary-response hypothesis**, the canonical mixed matrix inherits the fourth-order restoration rate.
+
+This bounded-response condition is now the principal analytic hypothesis still requiring either a geometric proof for the FK refinement family or an explicit theorem assumption plus numerical validation.
+
+# III. Fixed-volume weak assembly
+
+Define the global defect functional using the chosen cell quadrature,
+
+\[
+\mathcal E_h[N,M]=h^3\sum_{v\in\Lambda_h} e_v[N,M],
+\]
+
+where the local coefficient obeys the O(h^4) canonical estimate and the smearing interpolation is stable for bounded C^1 smearings. Shape regularity gives O(h^{-3}) cells in a fixed physical three-volume V. Therefore
 
 \[
 \boxed{
@@ -222,35 +320,40 @@ C\,V\,\|N\|_{C^1}\|M\|_{C^1}\,h^4+O(h^5).
 }
 \]
 
-## HDA structure-function corollary for the FK family
+This corollary refers to this explicitly defined weak/cell-integrated norm; it is not a claim about every possible discrete norm.
+
+# IV. FK structure-function corollary
 
 For the unweighted FK spatial symbol
 
 \[
-A=
-\begin{pmatrix}
-4&2&2\\
-2&4&2\\
-2&2&4
-\end{pmatrix},
+A=\begin{pmatrix}4&2&2\\2&4&2\\2&2&4\end{pmatrix},
 \qquad g=A^{-1},
 \]
 
-the geometric normal-deformation commutator has the continuum tensor type
+the geometric normal-deformation commutator has the HDA tensor type
 
 \[
 \beta^i=g^{ij}(N\partial_jM-M\partial_jN)=A^{ij}(N\partial_jM-M\partial_jN).
 \]
 
-The computational FK controls verify this structure function directly for adjacent x/y/z tents. The theorem above controls the pseudo-constraint obstruction; it does not by itself constitute an unrestricted off-shell proof of the full Dirac algebra.
+The matched adjacent x/y/z FK controls verify this structure-function direction directly. This kinematical structure-function identification is distinct from the covariant Bianchi theorem and from the canonical bounded-response bridge.
 
-## Claim boundary
+# Claim boundary
 
-This is a perturbative/on-shell Regge pseudo-constraint restoration theorem under explicit smoothness, shape-regularity, stationary-reduction, and physical-gap hypotheses. It is not a universal exact finite-h or unrestricted off-shell Dirac-algebra theorem.
+The proved analytic core is:
 
-## Remaining referee polish
+- exact Regge Bianchi + smooth small-curvature scaling => corrected middle-slice gauge Hessian residual O(h^4);
+- the leading local obstruction is the Schur term \(\mathcal G_4^{\rm eff}\);
+- exact tent-pole stationary reduction preserves this estimate.
 
-- cite the precise contracted Regge Bianchi identity and fat-triangulation convergence results;
-- state the chosen discrete global norm in the main text and alternatives in an appendix;
-- separate hypotheses that are assumed analytically from properties verified numerically for the FK control family;
-- perform an independent adversarial proof audit before marking SPE-11 complete.
+The canonical mixed-matrix conclusion additionally assumes a uniformly bounded stationary-response Jacobian \(\mathscr L_h\). Until that condition is proved or explicitly retained as a theorem hypothesis, do not label the full canonical O(h^4) statement unconditional.
+
+This is not a universal exact finite-h or unrestricted off-shell Dirac-algebra theorem.
+
+# Remaining work
+
+1. Prove or explicitly validate \(\|\mathscr L_h\|\le C_L\) for the matched FK refinement family.
+2. Cite the exact tent-move equations giving \(H\mathscr L=-K\) and the quadratic-curvature symmetry-breaking result.
+3. State the final weak norm and smearing space in the manuscript body.
+4. Perform an independent adversarial proof audit before closing SPE-11.

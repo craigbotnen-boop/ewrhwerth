@@ -1,0 +1,53 @@
+{
+  "description": "Independent clean-room FK48 length-Regge pseudo-constraint replication with a fresh explicit Weyl-free Ricci seed.",
+  "seed": {
+    "ricci": [[0.12,0.03,-0.02,0.025],[0.03,-0.08,0.018,-0.015],[-0.02,0.018,0.05,0.022],[0.025,-0.015,0.022,0.02]],
+    "old_vertex": [0.2,-0.15,0.1,-0.8],
+    "middle_reference": [0.0,0.0,0.0,0.0],
+    "new_vertex": [-0.25,0.3,-0.2,0.9],
+    "world_function": "l^2=h^2|d|^2-(h^4/3) R(d,u,d,u)"
+  },
+  "inventory": {
+    "fk_spatial_tetrahedra": 24,
+    "outer_neighbors": 14,
+    "four_simplices": 48,
+    "internal_edges": 16,
+    "internal_triangles": 64
+  },
+  "flat_control": {
+    "equation_norm": 8.254729053679323e-15,
+    "physical_gap_12th": 4.32126809280938,
+    "four_smallest_singular_values": [3.6891944602682623e-09,1.128851954011829e-09,8.141108836869752e-10,8.380571936657549e-11]
+  },
+  "refinement": [
+    {
+      "h": 0.09,
+      "total_residual_norm": 6.400459413411282e-09,
+      "gauge_projected_residual_norm": 6.400459327741e-09,
+      "physical_projected_residual_norm": 1.0472533482206793e-12,
+      "physical_fraction_of_total": 0.00016362002399576684,
+      "gauge_residual_over_h4": 9.755310665663e-05
+    },
+    {
+      "h": 0.065,
+      "total_residual_norm": 1.741164486538443e-09,
+      "gauge_projected_residual_norm": 1.741164455797e-09,
+      "physical_projected_residual_norm": 3.271672202807714e-13,
+      "physical_fraction_of_total": 0.00018790448515937864,
+      "gauge_residual_over_h4": 9.754081192096e-05
+    },
+    {
+      "h": 0.045,
+      "total_residual_norm": 3.999688119257695e-10,
+      "gauge_projected_residual_norm": 3.999688042232e-10,
+      "physical_projected_residual_norm": 7.850974799059227e-14,
+      "physical_fraction_of_total": 0.00019629141360931455,
+      "gauge_residual_over_h4": 9.753849821019e-05
+    }
+  ],
+  "gauge_obstruction_fit": {
+    "exponent": 4.000212790693,
+    "R2_loglog": 0.999999999463
+  },
+  "note": "The complete locally generated results file also stores all flat singular values, four smallest curved Jacobian singular values, and the 16 internal normalized length solutions. Regenerate those fields by running fk48_cleanroom_replication.py."
+}

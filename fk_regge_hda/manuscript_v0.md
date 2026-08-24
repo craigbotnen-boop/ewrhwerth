@@ -48,11 +48,11 @@ K_{gp}=O(h^2),
 
 where H is the stationary middle-slice Hessian, K is the old/new mixed Lagrangian Hessian, g denotes the four vertex-displacement directions, and p denotes the physical complement. The stationary response to boundary deformation directions is O(1), whereas the unrestricted response to arbitrary physical boundary perturbations scales approximately as h^{-2}. Thus the fourth-order restoration is real but sector-specific.
 
-This distinction also keeps the result compatible with the modern off-shell analysis of hypersurface deformations. Geometric hypersurface deformations and canonical gauge transformations are not identical as purely kinematical off-shell operations; their identification requires constraint and evolution information [@BojowaldDuqueShah2025]. Accordingly, the theorem stated below is an on-shell middle-slice result and its canonical corollary is restricted to the boundary deformation subspace.
+This distinction also keeps the result compatible with the modern off-shell analysis of hypersurface deformations. Geometric hypersurface deformations and canonical gauge transformations are not identical as purely kinematical off-shell operations; their identification requires constraint and evolution information [@BojowaldDuqueShah2025]. Accordingly, the theorem candidate developed below is an on-shell middle-slice statement and its canonical corollary is restricted to the boundary deformation subspace.
 
 ### 1.1 Main contributions
 
-The paper establishes the following chain.
+The analysis develops the following analytic chain and tests its consequences on a fully stationary FK refinement family.
 
 1. A contracted Regge Bianchi identity implies that the corrected middle-slice gauge-gauge Hessian has no h^2 or h^3 term.
 2. Physical/gauge Schur reduction produces the leading obstruction

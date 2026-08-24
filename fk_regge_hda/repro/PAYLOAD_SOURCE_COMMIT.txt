@@ -1,0 +1,6 @@
+Scientific/reproducibility payload source commit:
+c80a4bd03349bfba8580be68cfeeccb4472687c8
+Repository: craigbotnen-boop/ewrhwerth
+Source path: fk_regge_hda/repro
+Freeze date: 2026-08-24
+Packaging patch version: v1.0.1 (release engineering only; no scientific equations, seed, observables, or acceptance gates changed)

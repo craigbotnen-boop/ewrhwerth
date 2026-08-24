@@ -3,24 +3,22 @@
 \usepackage{amsmath,amssymb,mathtools}
 \usepackage{graphicx}
 \usepackage{booktabs}
+\usepackage{mathrsfs}
 \usepackage{microtype}
-\usepackage[numbers,sort&compress]{natbib}
+\usepackage[backend=biber,style=numeric-comp,sorting=none]{biblatex}
+\addbibresource{references.bib}
 \usepackage[colorlinks=true,allcolors=blue]{hyperref}
-
 \newcommand{\Oh}{\mathcal{O}}
 \newcommand{\Kgg}{K_{gg}}
 \newcommand{\Kgp}{K_{gp}}
 \newcommand{\Gfour}{\mathcal{G}^{\mathrm{eff}}_4}
 \newcommand{\PL}{P_L}
 \newcommand{\PR}{P_R}
-
 \title{Fourth-Order Restoration of the Canonical Gauge Sector\\in Refined Four-Dimensional Regge Calculus}
 \author{Craig Botnen}
 \date{}
-
 \begin{document}
 \maketitle
-
 \begin{abstract}
 Discretizations of general relativity generically break diffeomorphism symmetry, replacing exact canonical constraints by pseudo-constraints away from flat or specially curved sectors. Earlier Regge-calculus work established exact and approximate Bianchi identities, contracted conservation laws in the small-deficit regime, and quadratic lifting of would-be gauge Hessian modes with deficit angle. We study how this mechanism propagates through canonical tent-move evolution under shape-regular refinement of a four-dimensional Freudenthal--Kuhn (FK) length-Regge family.
 
@@ -212,6 +210,5 @@ H_{gg}=\Oh(h^4),\qquad \Kgg=\Oh(h^4),\qquad \Kgp=\Oh(h^2),
 \]
 with bounded deformation-restricted response and the correct inverse-metric structure function. The block separation is essential: refinement restores the canonical gauge sector without forcing the entire discrete canonical map to become fourth-order close to a gauge symmetry.
 
-\bibliographystyle{unsrtnat}
-\bibliography{references}
+\printbibliography
 \end{document}

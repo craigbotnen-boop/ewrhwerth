@@ -1,0 +1,217 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{microtype}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage[colorlinks=true,allcolors=blue]{hyperref}
+
+\newcommand{\Oh}{\mathcal{O}}
+\newcommand{\Kgg}{K_{gg}}
+\newcommand{\Kgp}{K_{gp}}
+\newcommand{\Gfour}{\mathcal{G}^{\mathrm{eff}}_4}
+\newcommand{\PL}{P_L}
+\newcommand{\PR}{P_R}
+
+\title{Fourth-Order Restoration of the Canonical Gauge Sector\\in Refined Four-Dimensional Regge Calculus}
+\author{Craig Botnen}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Discretizations of general relativity generically break diffeomorphism symmetry, replacing exact canonical constraints by pseudo-constraints away from flat or specially curved sectors. Earlier Regge-calculus work established exact and approximate Bianchi identities, contracted conservation laws in the small-deficit regime, and quadratic lifting of would-be gauge Hessian modes with deficit angle. We study how this mechanism propagates through canonical tent-move evolution under shape-regular refinement of a four-dimensional Freudenthal--Kuhn (FK) length-Regge family.
+
+For stationary near-flat Euclidean Regge data, a contracted-Bianchi argument implies that the corrected vertex-displacement sector of the reduced middle-slice Hessian has no contributions at orders $h^2$ or $h^3$. After eliminating physical mixing, the leading gauge obstruction is the fourth-order Schur term
+\[
+\Gfour=\PL\bigl(H_4-H_2H_0^+H_2\bigr)\PR.
+\]
+Under a uniform physical spectral gap and fourth-order transversality, this yields an $\Oh(h^4)$ gauge-sector pseudo-constraint defect. On fully stationary ordinary-Regge FK two-step complexes containing 48 four-simplices, the four lifted gauge singular values of the middle-slice Hessian scale as $h^4$ while the 12-dimensional physical gap remains $\Oh(1)$. Differentiating the stationary equations to form the old/new mixed Lagrangian Hessian $K$, we find the block hierarchy
+\[
+\Kgg=\Oh(h^4),\qquad \Kgp=\Oh(h^2).
+\]
+The stationary response is bounded on boundary deformation directions but grows approximately as $h^{-2}$ for unrestricted physical boundary forcing.
+
+Independently, direct normal-deformation commutators on neighboring FK tetrahedra recover the inverse-metric structure function
+\[
+\beta^a=\sigma g^{ab}(N\partial_bM-M\partial_bN),
+\]
+with $g^{-1}$ fixed by the FK graph symbol. A fixed-volume weak assembly preserves the fourth-order deformation-sector rate. The result is an on-shell, perturbative Euclidean length-Regge statement; it does not assert exact finite-spacing diffeomorphism symmetry or an unrestricted off-shell Dirac algebra.
+\end{abstract}
+
+\section{Introduction}
+The hypersurface-deformation algebra (HDA) is the canonical imprint of spacetime covariance in general relativity. In continuum ADM variables, the bracket of two normal deformations closes into a tangential deformation with inverse spatial metric as a structure function. Generic discretizations do not preserve this symmetry exactly. In Regge calculus, flat backgrounds possess vertex-displacement symmetries, whereas curvature generally lifts those directions and produces pseudo-constraints \cite{BahrDittrich2009,DittrichHoehn2010}.
+
+The refinement mechanism has several known ingredients. Hamber and Kagel derived an exact nonlinear Regge Bianchi identity from products of finite hinge rotations \cite{HamberKagel2004}. Gentle \emph{et al.} formulated a Kirchhoff-like contracted conservation law and power-counted its refinement behavior \cite{GentleEtAl2009}. Williams related the linearized contracted Bianchi identities directly to combinations of the four-dimensional Regge equations \cite{Williams2012}. Bahr and Dittrich further observed that small Hessian eigenvalues associated with broken vertex-displacement symmetry vanish quadratically with the deficit angle \cite{BahrDittrich2009}. Since shape-regular refinement of a smooth metric gives deficits of order $h^2$, these results anticipate a fourth-order gauge-lifting scale.
+
+What is not supplied by those observations alone is the corresponding statement after physical/gauge reduction of the canonical old/new mixed Lagrangian Hessian. The full canonical map need not be fourth-order close to a symmetry: physical boundary perturbations can generate parametrically larger responses. Our contribution is therefore a block statement. On fully stationary FK two-step length-Regge configurations we obtain
+\[
+H_{gg}=\Oh(h^4),\qquad \Kgg=\Oh(h^4),\qquad \Kgp=\Oh(h^2),
+\]
+with a bounded stationary response only on the geometric boundary-deformation subspace.
+
+This on-shell formulation is deliberate. Modern analyses emphasize that geometric hypersurface deformations and canonical Poisson-bracket generators are not a purely kinematical off-shell equivalence \cite{BojowaldDuqueShah2025}. Our theorem is therefore stated for stationary middle-slice Regge data, followed by a canonical corollary restricted to deformation sources.
+
+\section{FK metric dictionary and deformation bracket}
+The seven positive FK spatial directions are
+\[
+(1,0,0),\ (0,1,0),\ (0,0,1),\ (1,1,0),\ (1,0,1),\ (0,1,1),\ (1,1,1).
+\]
+For equal weights the principal tensor is
+\[
+A=\begin{pmatrix}4&2&2\\2&4&2\\2&2&4\end{pmatrix},
+\qquad g=A^{-1}.
+\]
+Thus the inverse metric appearing in the HDA is $g^{-1}=A$. The direct neighboring-tetrahedron normal-deformation calculation yields
+\[
+\beta^i=\sigma g^{ij}(N\partial_jM-M\partial_jN),
+\]
+where $\sigma=n\cdot n$ is the normal-sign convention. The Euclidean FK controls verify $\sigma=+1$ exactly in the continuum deformation limit. A separate Minkowski-normal calculation verifies the expected sign reversal $\sigma=-1$ kinematically; the fully stationary Lorentzian canonical calculation is not part of the present result.
+
+\section{Stationary middle-slice estimate}
+We work with normalized lengths $\hat l=l/h$ and dimensionless action $\widehat S=h^{-2}S$. Let
+\[
+\widetilde S_h(l^{n-1},l^n,l^{n+1})
+\]
+be the two-step effective length-Regge action after legitimate local stationary reductions. The middle-slice variables satisfy
+\[
+E_h:=\frac{\partial\widetilde S_h}{\partial l^n}=0,
+\qquad
+H_h:=\frac{\partial^2\widetilde S_h}{\partial l^n\partial l^n}.
+\]
+For a normalized vertex-displacement field $Y_A$, define $B_A=Y_A\cdot E_h$. Then
+\[
+Y_B[B_A]=(\nabla_{Y_B}Y_A)\cdot E_h+Y_A^TH_hY_B.
+\]
+At middle-slice stationarity the first term vanishes.
+
+For a hinge triangle $h=(v,a,b)$, let $u=a-v$, $w=b-v$, $d_h=a-b$, and $U_h=(u\wedge w)/|u\wedge w|$. The exact area-gradient identity is
+\[
+\nabla_vA_h=\frac12 U_h\cdot d_h.
+\]
+Using the Schlaefli-reduced Regge equations, the vertex contraction is therefore a deficit-bivector/edge contraction. The linear term is removed by the contracted Regge Bianchi identity, while the exact identity contains quadratic and higher curvature contributions \cite{HamberKagel2004,GentleEtAl2009,Williams2012}. Hence $B_A=\Oh(\epsilon^2)$. With smooth-refinement scaling $\epsilon=\Oh(h^2)$ and $\delta_Y\epsilon=\Oh(h^2)$,
+\[
+Y_A^TH_hY_B=\Oh(h^4).
+\]
+Writing
+\[
+H_h=H_0+h^2H_2+h^3H_3+h^4H_4+\Oh(h^5)
+\]
+therefore gives
+\[
+\PL H_2\PR=0,\qquad \PL H_3\PR=0.
+\]
+
+\section{Schur-corrected fourth-order obstruction}
+In a physical/gauge adapted basis,
+\[
+H_0=\begin{pmatrix}A_0&0\\0&0\end{pmatrix},
+\qquad \sigma_{\min}(A_0)\ge\gamma>0.
+\]
+The corrected gauge vectors satisfy
+\[
+X_R^{(2)}=-H_0^+H_2X_R^{(0)},\qquad
+X_R^{(3)}=-H_0^+H_3X_R^{(0)},
+\]
+with analogous left corrections. The leading gauge obstruction is
+\[
+\boxed{\Gfour=\PL(H_4-H_2H_0^+H_2)\PR.}
+\]
+The $h^3$ curvature-gradient term modifies the corrected vectors and higher remainder but does not enter $\Gfour$. A uniform physical gap implies a bounded pseudoinverse, so the Schur backreaction cannot generate inverse powers of $h$.
+
+\paragraph{Failure map.}
+The assumptions are rate-critical rather than cosmetic. If the middle-slice residual is only $\|E_h\|=\Oh(h^q)$, then generically the gauge-row estimate becomes $\Oh(h^{\min(4,q)})$. If the physical gap closes as $\gamma_h\sim h^\alpha$, the Schur term can degrade to $\Oh(h^{4-\alpha})$. Finally, if a boundary source enters the reduced gauge equation at $\Oh(h^r)$ while the gauge Jacobian is $\Oh(h^4)$, the gauge response scales as $\Oh(h^{r-4})$.
+
+\section{Canonical gauge-sector bridge}
+Differentiating the stationary middle-slice equations with respect to upper-boundary data gives the standard tent-move identity \cite{BahrDittrich2009}
+\[
+H_h\mathscr L_h=-K_h,
+\]
+where $K_h$ is the old/new mixed Lagrangian Hessian and $\mathscr L_h$ is the stationary response. Let $Q_g$ span upper geometric vertex-deformation directions. The reduced gauge equation has the schematic hierarchy
+\[
+\Psi_h(g,b_g,b_p)=h^4\Psi_4(g,b_g)+h^2S_2b_p+\Oh(h^5).
+\]
+If $D_g\Psi_4=\Gfour$ is nonsingular, the rescaled implicit-function theorem gives
+\[
+\|\mathscr L_hQ_g\|=\Oh(1).
+\]
+In contrast, a physical source entering at $h^2$ may produce $\Oh(h^{-2})$ response. Therefore
+\[
+X_L^TK_hQ_g=-X_L^TH_h\mathscr L_hQ_g=\Oh(h^4),
+\]
+which is the deformation-sector canonical statement. No fourth-order claim is made for $X_L^TK_hQ_p$.
+
+\section{Fully stationary FK48 validation}
+We solve the ordinary length-Regge equations on a two-step FK complex containing 48 four-simplices. At $h=0.09,0.065,0.045$, all 16 middle/internal equations are solved to approximately $10^{-15}$.
+
+The middle Hessian exhibits a stable 12-dimensional physical sector with smallest singular value approaching $3.982$, while the four lifted gauge singular values fit exponents
+\[
+3.99931,\quad 3.99933,\quad 4.00188,\quad 4.00651.
+\]
+The reduced fourth-order gauge Jacobian is full rank, with singular values divided by $h^4$ approaching approximately
+\[
+0.1696,\quad0.1389,\quad0.1068,\quad0.05368.
+\]
+
+For the canonical mixed matrix, the refined finite-difference calculation gives
+\[
+\|\Kgg\|\propto h^{4.00028},\qquad
+\|\Kgp\|\propto h^{1.99764}.
+\]
+The four singular-value exponents of $\Kgg$ are approximately
+\[
+4.00028,\quad3.99826,\quad3.99923,\quad4.01677.
+\]
+The deformation-restricted response remains near $0.333$, while the unrestricted response scales as approximately $h^{-2.0065}$.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.72\linewidth]{figures/figure1_canonical_block_hierarchy.pdf}
+\caption{Direct canonical block hierarchy on the fully stationary FK48 family. The deformation-sector block $K_{gg}$ is fourth order, while gauge-to-physical mixing remains second order.}
+\label{fig:blockhierarchy}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.72\linewidth]{figures/figure2_Kgg_singular_values.pdf}
+\caption{All four singular values of the old/new gauge-to-gauge mixed block $K_{gg}$.}
+\label{fig:kggsv}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.72\linewidth]{figures/figure3_stationary_response.pdf}
+\caption{Stationary-response hierarchy. The response to geometric deformation sources is bounded, while unrestricted physical forcing produces an approximately $h^{-2}$ response.}
+\label{fig:response}
+\end{figure}
+
+\section{Weak periodic assembly}
+For bounded $C^1$ smearings and a stable interpolation, define the cell-integrated defect
+\[
+\mathcal E_h[N,M]=h^3\sum_{v\in\Lambda_h}e_v[N,M].
+\]
+Shape regularity gives $\Oh(h^{-3})$ cells in a fixed physical volume. Hence a local $\Oh(h^4)$ deformation-sector coefficient remains $\Oh(h^4)$ after fixed-volume weak assembly:
+\[
+|\mathcal E_h[N,M]|\le C V\|N\|_{C^1}\|M\|_{C^1}h^4+\Oh(h^5).
+\]
+This is a statement in this weak, cell-integrated norm only. Rigorous Regge-curvature convergence results motivate the use of shape-regular refinement hypotheses \cite{Christiansen2024,GawlikNeunteufel2025}.
+
+\section{Relation to prior work and limitations}
+Quadratic deficit-angle lifting of would-be gauge modes is prior art \cite{BahrDittrich2009}; the present contribution is the propagation of that mechanism through the stationary physical/gauge Schur reduction into the direct canonical gauge-to-gauge block, together with the FK structure-function and weak-assembly checks. Exact discrete HDA constructions in four dimensions are known in flat or homogeneously curved sectors \cite{BonzomDittrich2013}; our result instead quantifies refinement restoration in a generic near-flat curved length-Regge family.
+
+The result does not extend automatically to area Regge calculus, where non-metric modes alter the broken-diffeomorphism structure. It also does not use raw residual errors obtained by simply sampling a continuum solution on a lattice; the principal FK48 validation is performed on fully stationary discrete Regge solutions.
+
+The Lorentzian normal-deformation kinematics has been checked separately and gives the expected $\sigma=-1$ sign. A fully stationary Lorentzian canonical FK48 calculation requires a specified causal sector and is left for future work.
+
+\section{Conclusion}
+The FK refinement family exhibits fourth-order restoration specifically in the canonical deformation/gauge sector. On fully stationary ordinary length-Regge solutions,
+\[
+H_{gg}=\Oh(h^4),\qquad \Kgg=\Oh(h^4),\qquad \Kgp=\Oh(h^2),
+\]
+with bounded deformation-restricted response and the correct inverse-metric structure function. The block separation is essential: refinement restores the canonical gauge sector without forcing the entire discrete canonical map to become fourth-order close to a gauge symmetry.
+
+\bibliographystyle{unsrtnat}
+\bibliography{references}
+\end{document}

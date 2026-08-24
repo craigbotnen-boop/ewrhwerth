@@ -1,0 +1,9 @@
+{
+  "pseudo_constraint_exponent": {"target": 4.000212790693, "abs_tol": 0.01},
+  "stationary_gauge_hessian_exponent": {"target": 4.024741325102, "abs_tol": 0.03},
+  "Kgg_exponent": {"target": 4.038838683170, "abs_tol": 0.05},
+  "Kgp_exponent": {"target": 2.000569373256, "abs_tol": 0.01},
+  "max_stationarity_norm": 5e-13,
+  "min_physical_gap": 4.0,
+  "max_restricted_response_norm": 1.5
+}

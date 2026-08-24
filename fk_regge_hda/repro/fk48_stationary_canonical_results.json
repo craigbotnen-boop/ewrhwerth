@@ -1,0 +1,66 @@
+{
+  "description": "Independent full stationary/canonical FK48 reproduction using the explicit seed in fk48_cleanroom_replication.py with curvature amplitude 3.",
+  "curvature_amplitude": 3.0,
+  "h_values": [0.15, 0.12, 0.09],
+  "finite_difference_step_H_and_boundary": 3e-05,
+  "inventory": {"four_simplices": 48, "internal_edges": 16, "upper_boundary_spokes": 14},
+  "flat_control": {
+    "physical_gap": 4.321268092916314,
+    "four_smallest_singular_values": [1.947533172911367e-09, 6.217964583456717e-10, 3.268324732358959e-10, 5.3066613524445614e-11]
+  },
+  "refinement": [
+    {
+      "h": 0.15,
+      "stationarity_norm": 1.3991986917655055e-14,
+      "physical_gap": 4.261293738105201,
+      "gauge_hessian_frobenius": 6.8703504591711645e-06,
+      "gauge_hessian_frobenius_over_h4": 0.013571062635399832,
+      "Geff_singular_values_over_h4": [0.009654990362579526, 0.008518851541090737, 0.004940718889530171, 0.0018575305391783131],
+      "Kgg_singular_values": [1.2539586064850705e-06, 1.0229322195518772e-06, 4.413576680739153e-07, 1.5165386364598758e-07],
+      "Kgg_frobenius": 1.6842202938160169e-06,
+      "Kgg_frobenius_over_h4": 0.0033268549013649716,
+      "Kgp_operator_norm": 0.0011990558977364647,
+      "Kgp_operator_norm_over_h2": 0.05329137323273177,
+      "restricted_response_norm": 1.1019042134273056,
+      "full_response_norm": 983.6178369054928
+    },
+    {
+      "h": 0.12,
+      "stationarity_norm": 1.3543126519400903e-14,
+      "physical_gap": 4.260867618550932,
+      "gauge_hessian_frobenius": 2.80541226565154e-06,
+      "gauge_hessian_frobenius_over_h4": 0.013529187237902876,
+      "Geff_singular_values_over_h4": [0.009664945201219417, 0.008461091446722526, 0.00489135211121488, 0.0018355762026535727],
+      "Kgg_singular_values": [5.085154787415439e-07, 4.212361688638373e-07, 1.7963584785348973e-07, 6.429520241565463e-08],
+      "Kgg_frobenius": 6.873360262393766e-07,
+      "Kgg_frobenius_over_h4": 0.003314699200614278,
+      "Kgp_operator_norm": 0.0007672693024931547,
+      "Kgp_operator_norm_over_h2": 0.05328259045091352,
+      "restricted_response_norm": 1.1153850492841573,
+      "full_response_norm": 1555.6419229961775
+    },
+    {
+      "h": 0.09,
+      "stationarity_norm": 1.587460607493918e-14,
+      "physical_gap": 4.260536560334575,
+      "gauge_hessian_frobenius": 8.793876721221741e-07,
+      "gauge_hessian_frobenius_over_h4": 0.01340325670053611,
+      "Geff_singular_values_over_h4": [0.009700036847547229, 0.008304876874679524, 0.0046880491004285966, 0.0017595829709930615],
+      "Kgg_singular_values": [1.5415213914248758e-07, 1.3582270706316508e-07, 5.556635039648415e-08, 2.3005169911325402e-08],
+      "Kgg_frobenius": 2.1407369500993116e-07,
+      "Kgg_frobenius_over_h4": 0.0032628211402214785,
+      "Kgp_operator_norm": 0.00043153327560349863,
+      "Kgp_operator_norm_over_h2": 0.05327571303746897,
+      "restricted_response_norm": 1.1544485043356254,
+      "full_response_norm": 2887.810865983462
+    }
+  ],
+  "fits": {
+    "gauge_hessian_frobenius": {"exponent": 4.024741325102055, "coefficient": 0.014235696854575958, "R2_loglog": 0.9999982842161655},
+    "Kgg_frobenius": {"exponent": 4.038838683170393, "coefficient": 0.0035877045470710995, "R2_loglog": 0.9999927715412944},
+    "Kgp_operator_norm": {"exponent": 2.000569373255665, "coefficient": 0.053348242127979534, "R2_loglog": 0.9999999983230746},
+    "restricted_response_norm": {"exponent": -0.09253459137707905, "coefficient": 0.9216703433196355, "R2_loglog": 0.9619141593382188},
+    "full_response_norm": {"exponent": -2.1103629924808613, "coefficient": 17.869929752929906, "R2_loglog": 0.9998347513967636}
+  },
+  "claim_boundary": "This is an independent fresh-seed numerical reproduction. It validates the block hierarchy and fourth-order aggregate canonical gauge sector, but is not a byte-for-byte replay of the manuscript's historical boundary seed."
+}

@@ -1,0 +1,20 @@
+{
+  "h": [0.09, 0.065, 0.045],
+  "Kgg_singular_values_over_h4": [
+    [0.03367925605852767, 0.033700639053254426, 0.03367378363054413],
+    [0.013625839064167049, 0.01366398140121144, 0.01364348766346594],
+    [0.0060852979576284105, 0.006088465529918419, 0.006088618832495047],
+    [0.0032237844078646547, 0.0032551681467735717, 0.0031884618808108523]
+  ],
+  "Kgp_norm_over_h2": [0.24031379738583306, 0.24056638611680511, 0.24071045399229693],
+  "restricted_stationary_response_norm": [0.33317, 0.33351, 0.33418],
+  "full_stationary_response_norm": [426.3, 818.0, 1712.8],
+  "reported_middle_Hessian_gauge_exponents": [3.9993140121604154, 3.999327557038315, 4.001880636953374, 4.006508558332171],
+  "reported_physical_gap_limit": 3.982,
+  "reported_reduced_gauge_Jacobian_over_h4_singular_values": [0.1696, 0.1389, 0.1068, 0.05368],
+  "notes": {
+    "Kgg": "Values shown are singular values divided by h^4 from the refined 1e-6 central-difference mixed-boundary Jacobian calculation.",
+    "Kgp": "Values shown are the gauge-to-physical block norm divided by h^2.",
+    "response": "Restricted response is to upper geometric deformation directions; full response includes arbitrary physical boundary perturbations."
+  }
+}

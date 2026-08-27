@@ -194,17 +194,32 @@ def _compute_eigenvalues(
         # Return smallest n_eigs (including near-zero)
         return eigenvalues[:n_eigs]
 
-    # For larger graphs, use sparse eigsh
+    # For larger graphs, use sparse eigsh with shift-invert mode.
+    # A small positive shift (sigma=1e-5) avoids the exact singularity of
+    # the Laplacian's zero eigenvalue while still targeting the smallest
+    # non-trivial eigenvalues.  This converges much faster than which='SM'.
     try:
-        # which='SM' finds smallest magnitude eigenvalues
-        # For Laplacian, smallest are near 0
-        eigenvalues, _ = eigsh(L, k=n_eigs, which='SM')
+        eigenvalues, _ = eigsh(L, k=n_eigs, sigma=1e-5, which='LM',
+                               tol=1e-6, maxiter=N * 10)
         eigenvalues = np.sort(np.abs(eigenvalues))
     except Exception as e:
-        warnings.warn(f"Sparse eigendecomposition failed: {e}. Using dense.")
-        L_dense = L.toarray()
-        eigenvalues = np.linalg.eigvalsh(L_dense)
-        eigenvalues = np.sort(eigenvalues)[:n_eigs]
+        # Fall back to which='SM' with relaxed tolerance.
+        warnings.warn(f"Shift-invert eigsh failed ({e}); falling back to which='SM'")
+        try:
+            eigenvalues, _ = eigsh(L, k=n_eigs, which='SM',
+                                   tol=1e-4, maxiter=N * 10)
+            eigenvalues = np.sort(np.abs(eigenvalues))
+        except Exception as e2:
+            if N <= 50000:
+                warnings.warn(f"Sparse eigsh failed: {e2}. Using dense.")
+                L_dense = L.toarray()
+                eigenvalues = np.linalg.eigvalsh(L_dense)
+                eigenvalues = np.sort(eigenvalues)[:n_eigs]
+            else:
+                raise RuntimeError(
+                    f"eigsh failed on N={N} graph: {e2}. "
+                    "Consider reducing n_eigs or using Hutchinson estimator."
+                )
 
     return eigenvalues
 
@@ -486,15 +501,50 @@ def hutchinson_trace_estimate(
     N = L.shape[0]
 
     P_t = np.zeros(len(t_values))
+    neg_L = -L  # single copy reused for all probes
 
-    for _ in range(n_vectors):
-        # Rademacher random vector
+    # Split log-spaced t_values into per-decade batches for expm_multiply.
+    # Each batch uses linearly spaced points within one decade, keeping:
+    #   - output arrays small: (pts_per_decade, N) ~ 38 MB at N=250k
+    #   - Krylov workspace small: t_stop/t_start <= 10 per batch
+    # Then interpolate all batch results onto the original log-spaced grid.
+    t_lo, t_hi = float(t_values[0]), float(t_values[-1])
+    decade_edges = [t_lo]
+    t = t_lo
+    while t < t_hi:
+        t = min(t * 10.0, t_hi)
+        decade_edges.append(t)
+    pts_per_decade = 20
+
+    for j in range(n_vectors):
         z = rng.choice([-1.0, 1.0], size=N)
 
-        for i, t in enumerate(t_values):
-            # exp(-tL) @ z via Krylov subspace method
-            exp_Lz = expm_multiply(-t * L, z)
-            P_t[i] += z @ exp_Lz
+        # Collect (t, trace) pairs from all decade batches
+        all_t = []
+        all_traces = []
+
+        for di in range(len(decade_edges) - 1):
+            d_start = decade_edges[di]
+            d_stop = decade_edges[di + 1]
+
+            results = expm_multiply(neg_L, z, start=d_start, stop=d_stop,
+                                    num=pts_per_decade, endpoint=True)
+            traces_batch = results @ z  # (pts_per_decade,)
+            t_batch = np.linspace(d_start, d_stop, pts_per_decade)
+
+            # Avoid duplicate boundary points between decades
+            if di > 0:
+                t_batch = t_batch[1:]
+                traces_batch = traces_batch[1:]
+
+            all_t.append(t_batch)
+            all_traces.append(traces_batch)
+
+        t_combined = np.concatenate(all_t)
+        traces_combined = np.concatenate(all_traces)
+
+        # Interpolate to our log-spaced t_values
+        P_t += np.interp(t_values, t_combined, traces_combined)
 
     P_t /= n_vectors
     return P_t

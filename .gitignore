@@ -18,3 +18,7 @@ env/
 # OS
 .DS_Store
 Thumbs.db
+
+# Large generated data (reproducible via analyze_halo_graph.py)
+halo_graph_100k.edgelist
+halo_graph_250k.edgelist

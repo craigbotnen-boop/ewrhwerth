@@ -1,0 +1,45 @@
+{
+  "campaign": "BITNET_EH1_ARCHITECTURE_SMOKE_V1",
+  "disposition_id": "BITNET_EH1_FULL_CAMPAIGN_CANCELLATION_DISPOSITION_V1",
+  "date_utc": "2026-07-15",
+  "launch_manifest": "BITNET_EH1_FULL_CAMPAIGN_LAUNCH_MANIFEST_V1",
+  "launch_status_historical": "LAUNCHED",
+  "current_execution_status": "ALL_12_JOBS_CANCELED",
+  "execution_host": "Hugging Face Jobs",
+  "hardware_flavor": "a100-large",
+  "job_count": 12,
+  "jobs": [
+    {"arm": "B_full", "seed": 17, "job_id": "6a581485b1669a49bf0764c8", "status": "CANCELED"},
+    {"arm": "B_full", "seed": 29, "job_id": "6a581496b1669a49bf0764d0", "status": "CANCELED"},
+    {"arm": "B_full", "seed": 41, "job_id": "6a5814a485d9643ce16d59a6", "status": "CANCELED"},
+    {"arm": "B_narrow", "seed": 17, "job_id": "6a5814b3b1669a49bf0764d2", "status": "CANCELED"},
+    {"arm": "B_narrow", "seed": 29, "job_id": "6a5814c1b1669a49bf0764d4", "status": "CANCELED"},
+    {"arm": "B_narrow", "seed": 41, "job_id": "6a5814d085d9643ce16d59aa", "status": "CANCELED"},
+    {"arm": "B_ambient", "seed": 17, "job_id": "6a5814deb1669a49bf0764d8", "status": "CANCELED"},
+    {"arm": "B_ambient", "seed": 29, "job_id": "6a5814ec85d9643ce16d59ac", "status": "CANCELED"},
+    {"arm": "B_ambient", "seed": 41, "job_id": "6a5814feb1669a49bf0764da", "status": "CANCELED"},
+    {"arm": "E_EH1", "seed": 17, "job_id": "6a58150c85d9643ce16d59ae", "status": "CANCELED"},
+    {"arm": "E_EH1", "seed": 29, "job_id": "6a58151ab1669a49bf0764e0", "status": "CANCELED"},
+    {"arm": "E_EH1", "seed": 41, "job_id": "6a581525b1669a49bf0764e2", "status": "CANCELED"}
+  ],
+  "status_evidence": {
+    "all_job_listing": "Hugging Face Jobs ps reported CANCELED for all 12 launch-manifest job IDs",
+    "representative_inspections": [
+      {"arm": "B_full", "seed": 17, "job_id": "6a581485b1669a49bf0764c8", "cancel_reason": "NO_CREDITS", "failure_count": 0},
+      {"arm": "B_narrow", "seed": 17, "job_id": "6a5814b3b1669a49bf0764d2", "cancel_reason": "NO_CREDITS", "failure_count": 0},
+      {"arm": "B_ambient", "seed": 17, "job_id": "6a5814deb1669a49bf0764d8", "cancel_reason": "NO_CREDITS", "failure_count": 0},
+      {"arm": "E_EH1", "seed": 17, "job_id": "6a58150c85d9643ce16d59ae", "cancel_reason": "NO_CREDITS", "failure_count": 0}
+    ]
+  },
+  "scientific_disposition": "NO_SCIENTIFIC_EXECUTION_VERDICT",
+  "training_result_receipts_emitted": 0,
+  "verdict_gates_evaluated": [],
+  "preflight_state": {
+    "four_arm_three_seed_first_backward": "PASS",
+    "failclosed_real_corpus_10_update_trainer": "PASS_NON_VERDICT",
+    "full_50M_campaign": "NOT_EXECUTED_TO_COMPLETION"
+  },
+  "relaunch_rule": "Do not relaunch until sufficient prepaid Hugging Face compute credits or an alternative A100 execution host is explicitly available. Relaunch must preserve the frozen code commit, corpus/tokenizer/schedules, arms, seeds, optimizer updates, and verdict gates.",
+  "claim_ceiling": "ARCHITECTURE_SMOKE / PRELAUNCH AND INFRASTRUCTURE DISPOSITION ONLY",
+  "historical_qabs_state_unchanged": "BLOCKED_BITNET_2B4T_AGGREGATE_QABS"
+}

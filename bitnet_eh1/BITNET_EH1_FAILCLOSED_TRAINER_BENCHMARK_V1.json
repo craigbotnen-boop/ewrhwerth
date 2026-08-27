@@ -1,0 +1,69 @@
+{
+  "campaign": "BITNET_EH1_ARCHITECTURE_SMOKE_V1",
+  "benchmark_id": "BITNET_EH1_FAILCLOSED_TRAINER_BENCHMARK_V1",
+  "date_utc": "2026-07-15",
+  "scope": "NON_VERDICT_EXECUTION_PREFLIGHT",
+  "code_commit": "981bc3bc0ec4464f4a47d6a7710d08a9420aba19",
+  "transformers_revision": "096f25ae1f501a084d8ff2dcaf25fbc2bd60eba4",
+  "execution_host": "Hugging Face Jobs",
+  "job_id": "6a581199b1669a49bf076497",
+  "hardware": "NVIDIA A100-SXM4-80GB",
+  "environment": {
+    "torch": "2.7.1+cu128",
+    "tokenizers_training_environment": "0.22.1",
+    "tokenizers_model_environment": "0.21.4",
+    "transformers": "4.52.0.dev0 at pinned revision"
+  },
+  "frozen_input": {
+    "verdict": "CORPUS_TOKENIZER_AND_SCHEDULE_FREEZE_PASS",
+    "freeze_seconds": 206,
+    "source_amendment_sha256": "aec1e394eb3d11cf6076fd2816500fe5e96340cb1c20c4e7df519f04491efa45",
+    "source_train_jsonl_sha256": "33e10f84b8a2062771ac355afbe40cf419d39efe7c029af685d51a19fdb84904",
+    "source_validation_jsonl_sha256": "2c4ea91c4dfdbaf1261429331c775de7656eb1b1a32915ed4dfe70cd3a074b93",
+    "tokenizer_sha256": "31fc0ca107bbee4b263f0bf795e423e344dc1e2a89c7e6e85036ac8162575566",
+    "train_token_bin_sha256": "ec91d454c56e60c6cd00402f81c7e0d70e8193a693f96c2216f4d68d3329a9a6",
+    "validation_token_bin_sha256": "b89274455c7cd932174a4a8d3f0499699742798fc803eb485d87d30eb4023e31",
+    "train_schedule_seed_17_sha256": "d08e0a876b08b01ce8ae26119d7254422c87a10ac467745ff383cc1e74c62fd9",
+    "validation_schedule_sha256": "4e6e8c715d307226816449b55a3d16a623cbb0b52f3480fdbb4c8bb9e32e0172"
+  },
+  "run": {
+    "arm": "B_full",
+    "seed": 17,
+    "max_updates_executed": 10,
+    "realized_training_tokens_executed": 327680,
+    "verdict_eligible": false,
+    "skip_periodic_eval": true,
+    "skip_final_interventions": true,
+    "final_validation_sequences": 2048,
+    "runtime_seconds_reported_by_runner": 50.87213754653931,
+    "shell_train_environment_and_run_seconds_after_freeze": 98,
+    "normal_nll": 7.3634334690868855,
+    "normal_perplexity": 1577.2426907817144,
+    "cuda_max_allocated_bytes": 4312253952,
+    "checkpoint_sha256": "c5df2e4e8f37fa727a066d3ecd384b48e4c1e8745bb3bd1c23321101f81851c7"
+  },
+  "training_trace": [
+    {"update": 1, "train_nll": 8.483481466770172, "grad_norm_preclip": 2.1253702640533447, "lr": 0.000019659239842726083},
+    {"update": 2, "train_nll": 8.466487288475037, "grad_norm_preclip": 2.1518020629882812, "lr": 0.000039318479685452165},
+    {"update": 3, "train_nll": 8.404244601726532, "grad_norm_preclip": 2.07710599899292, "lr": 0.000058977719528178245},
+    {"update": 4, "train_nll": 8.244677603244781, "grad_norm_preclip": 2.2954697608947754, "lr": 0.00007863695937090433},
+    {"update": 5, "train_nll": 8.125188827514648, "grad_norm_preclip": 2.107602119445801, "lr": 0.00009829619921363041},
+    {"update": 6, "train_nll": 7.9889891147613525, "grad_norm_preclip": 2.0873606204986572, "lr": 0.00011795543905635649},
+    {"update": 7, "train_nll": 7.910456001758575, "grad_norm_preclip": 1.9084584712982178, "lr": 0.00013761467889908258},
+    {"update": 8, "train_nll": 7.660926461219788, "grad_norm_preclip": 1.4601998329162598, "lr": 0.00015727391874180866},
+    {"update": 9, "train_nll": 7.615938633680344, "grad_norm_preclip": 1.3479080200195312, "lr": 0.00017693315858453474},
+    {"update": 10, "train_nll": 7.509578466415405, "grad_norm_preclip": 1.0694950819015503, "lr": 0.00019659239842726082}
+  ],
+  "gradient_firewall": {
+    "entry_point": "run_architecture_smoke_failclosed.py",
+    "status": "COMPLETED_WITHOUT_GRADIENT_FIREWALL_TRIGGER",
+    "clip_grad_norm_error_if_nonfinite": true,
+    "nonfinite_gradient_values_observed": 0,
+    "rule": "scan all accumulated parameter gradients immediately before clip_grad_norm_; any non-finite value raises before clipping and optimizer.step"
+  },
+  "verdict": "FAILCLOSED_TRAINER_SHORT_RUN_PASS_NON_VERDICT",
+  "interpretation": "The exact frozen-data runner, Foundation SubLN initialization, online BitLinear QAT path, token-clock scheduler, gradient accumulation, and fail-closed gradient firewall completed a short real-corpus training run without a numerical blocker.",
+  "forbidden_interpretation": "The 10-update result is not evidence for any preregistered architecture gate and must not be used in WIDTH_PENALTY, AMBIENT_DENOMINATOR, HEAD_USE, TOKEN_CONDITIONING, HEAD_INCREMENT, or RECOVERY adjudication.",
+  "claim_ceiling": "ARCHITECTURE_SMOKE / NON_VERDICT_EXECUTION_PREFLIGHT",
+  "historical_qabs_state_unchanged": "BLOCKED_BITNET_2B4T_AGGREGATE_QABS"
+}

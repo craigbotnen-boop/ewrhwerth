@@ -1,0 +1,50 @@
+{
+  "campaign": "BITNET_EH1_ARCHITECTURE_SMOKE_V1",
+  "manifest_id": "BITNET_EH1_FULL_CAMPAIGN_LAUNCH_MANIFEST_V1",
+  "date_utc": "2026-07-15",
+  "status": "LAUNCHED",
+  "execution_host": "Hugging Face Jobs",
+  "hardware_flavor": "a100-large",
+  "code_commit": "043564193c267b53b7c0548deac06a14ed1cc0a4",
+  "transformers_revision": "096f25ae1f501a084d8ff2dcaf25fbc2bd60eba4",
+  "scientific_entry_point": "bitnet_eh1/run_architecture_smoke_failclosed.py",
+  "frozen_arms": ["B_full", "B_narrow", "B_ambient", "E_EH1"],
+  "paired_seeds": [17, 29, 41],
+  "optimizer_updates_per_run": 1526,
+  "training_tokens_per_run": 50003968,
+  "jobs": [
+    {"arm": "B_full", "seed": 17, "job_id": "6a581485b1669a49bf0764c8"},
+    {"arm": "B_full", "seed": 29, "job_id": "6a581496b1669a49bf0764d0"},
+    {"arm": "B_full", "seed": 41, "job_id": "6a5814a485d9643ce16d59a6"},
+    {"arm": "B_narrow", "seed": 17, "job_id": "6a5814b3b1669a49bf0764d2"},
+    {"arm": "B_narrow", "seed": 29, "job_id": "6a5814c1b1669a49bf0764d4"},
+    {"arm": "B_narrow", "seed": 41, "job_id": "6a5814d085d9643ce16d59aa"},
+    {"arm": "B_ambient", "seed": 17, "job_id": "6a5814deb1669a49bf0764d8"},
+    {"arm": "B_ambient", "seed": 29, "job_id": "6a5814ec85d9643ce16d59ac"},
+    {"arm": "B_ambient", "seed": 41, "job_id": "6a5814feb1669a49bf0764da"},
+    {"arm": "E_EH1", "seed": 17, "job_id": "6a58150c85d9643ce16d59ae"},
+    {"arm": "E_EH1", "seed": 29, "job_id": "6a58151ab1669a49bf0764e0"},
+    {"arm": "E_EH1", "seed": 41, "job_id": "6a581525b1669a49bf0764e2"}
+  ],
+  "prelaunch_gates": {
+    "corpus_tokenizer_schedule_freeze": "CORPUS_TOKENIZER_AND_SCHEDULE_FREEZE_PASS",
+    "four_arm_three_seed_first_backward": "FOUR_ARM_THREE_SEED_FIRST_BACKWARD_PASS",
+    "failclosed_trainer_short_run": "FAILCLOSED_TRAINER_SHORT_RUN_PASS_NON_VERDICT",
+    "a100_cost_preflight": "A100_CAMPAIGN_COST_PREFLIGHT_PASS"
+  },
+  "baseline_compute_projection": {
+    "a100_compute_hours": 16.753277440358378,
+    "official_listed_usd_per_a100_hour": 2.5,
+    "baseline_projected_usd": 41.88319360089594,
+    "excluded_from_baseline": [
+      "E_EH1 shuffle-bank construction overhead",
+      "per-job environment setup",
+      "per-job deterministic corpus regeneration",
+      "scheduler/runtime variance"
+    ]
+  },
+  "checkpoint_persistence_note": "Dedicated Hugging Face model/dataset repository creation was not permitted by the connected HF token during preflight. Each job performs all final causal interventions before exit and prints the full RUN_RECEIPT plus checkpoint SHA-256 to job logs. Compact result receipts will be banked to GitHub after job closeout; checkpoint bytes are not currently durably exported from the ephemeral job runtime.",
+  "claim_status": "NO_NATIVE_TRAINING_VERDICT_YET; RUNS_LAUNCHED",
+  "claim_ceiling": "ARCHITECTURE_SMOKE",
+  "historical_qabs_state_unchanged": "BLOCKED_BITNET_2B4T_AGGREGATE_QABS"
+}

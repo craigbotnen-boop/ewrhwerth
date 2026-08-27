@@ -1,0 +1,66 @@
+{
+  "campaign": "BITNET_EH1_ARCHITECTURE_SMOKE_V1",
+  "preflight_id": "BITNET_EH1_A100_THROUGHPUT_COST_PREFLIGHT_V1",
+  "date_utc": "2026-07-15",
+  "scope": "NON_VERDICT_THROUGHPUT_AND_COST_PREFLIGHT",
+  "code_commit": "981bc3bc0ec4464f4a47d6a7710d08a9420aba19",
+  "transformers_revision": "096f25ae1f501a084d8ff2dcaf25fbc2bd60eba4",
+  "execution_host": "Hugging Face Jobs",
+  "job_id": "6a58131085d9643ce16d5991",
+  "hardware": "NVIDIA A100-SXM4-80GB",
+  "hardware_flavor": "a100-large",
+  "official_listed_price_usd_per_hour": 2.5,
+  "timing_method": "Exact current model core and training/evaluation functions on deterministic synthetic uint16 token streams solely for wall-clock timing; no scientific architecture verdict is drawn from timing NLLs.",
+  "measurements": {
+    "B_full": {
+      "training_updates_timed": 20,
+      "training_seconds": 48.69804325001314,
+      "seconds_per_update": 2.434902162500657,
+      "training_tokens_per_second": 13457.624911855635,
+      "full_validation_target_tokens": 4194304,
+      "full_validation_seconds": 24.08569433633238,
+      "validation_tokens_per_second": 174140.8797035611,
+      "cuda_max_allocated_bytes": 2870474752
+    },
+    "E_EH1": {
+      "training_updates_timed": 20,
+      "training_seconds": 47.23326602205634,
+      "seconds_per_update": 2.361663301102817,
+      "training_tokens_per_second": 13874.966844214605,
+      "full_validation_target_tokens": 4194304,
+      "full_validation_seconds": 23.824146629311144,
+      "validation_tokens_per_second": 176052.64378450793,
+      "cuda_max_allocated_bytes": 2774343680,
+      "full_validation_capture_seconds": 24.08849960612133,
+      "full_validation_zero_clamp_seconds": 23.81191062135622,
+      "full_validation_mean_clamp_seconds": 23.823163168970495,
+      "captured_energy_bank_cpu_bytes": 201326592
+    }
+  },
+  "frozen_campaign_workload": {
+    "runs": 12,
+    "arms": ["B_full", "B_narrow", "B_ambient", "E_EH1"],
+    "paired_seeds": [17, 29, 41],
+    "optimizer_updates_per_run": 1526,
+    "training_tokens_per_run": 50003968,
+    "total_training_tokens": 600047616,
+    "non_E_run_full_validation_passes": 51,
+    "E_EH1_run_full_validation_passes": 70,
+    "aggregate_full_validation_passes": 669,
+    "aggregate_validation_target_tokens": 2805989376,
+    "aggregate_train_plus_validation_token_passes": 3406036992
+  },
+  "projection": {
+    "method": "Linear projection from measured B_full and E_EH1 update/pass timings. B_narrow and B_ambient are conservatively budgeted at B_full timing. E_EH1 shuffle-bank construction overhead, environment setup, corpus regeneration, scheduler latency, and hardware variance are not included in the baseline projection.",
+    "projected_non_E_run_hours": 1.3733419753135983,
+    "projected_E_EH1_run_hours_before_shuffle_construction_overhead": 1.4643998875119981,
+    "projected_campaign_compute_hours_baseline": 16.753277440358378,
+    "projected_campaign_compute_cost_usd_baseline": 41.88319360089594,
+    "operational_budget_note": "Expect modest additional billed time above baseline for eight cross-sequence and eight within-sequence shuffle-bank constructions in each E_EH1 run, per-job environment setup, deterministic corpus regeneration, and scheduler/runtime variance."
+  },
+  "verdict": "A100_CAMPAIGN_COST_PREFLIGHT_PASS",
+  "interpretation": "Measured throughput places the complete four-arm by three-seed Architecture Smoke campaign in a tens-of-dollars, not hundreds-of-dollars, baseline A100 compute range.",
+  "forbidden_interpretation": "Timing NLLs are synthetic-input timing data and are not admissible for WIDTH_PENALTY, AMBIENT_DENOMINATOR, HEAD_USE, TOKEN_CONDITIONING, HEAD_INCREMENT, or RECOVERY adjudication.",
+  "claim_ceiling": "ARCHITECTURE_SMOKE / NON_VERDICT_THROUGHPUT_AND_COST_PREFLIGHT",
+  "historical_qabs_state_unchanged": "BLOCKED_BITNET_2B4T_AGGREGATE_QABS"
+}

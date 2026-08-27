@@ -1,0 +1,77 @@
+{
+  "amendment_id": "BITNET_EH1_INITIALIZATION_AMENDMENT_V1",
+  "campaign": "BITNET_EH1_ARCHITECTURE_SMOKE_V1",
+  "timing": "PRE_TRAINING_PRE_VERDICT",
+  "date_utc": "2026-07-15",
+  "disposition": "ADOPT_WIDTH_SCALED_MASTER_INIT_V1",
+  "trigger": {
+    "description": "The exact pinned Transformers AutoBitLinear online-QAT path produced finite forward loss but immediate non-finite first-backward gradients in the untrained B_full control when the 1024-hidden smoke model inherited the BitNetConfig default initializer_range=0.02 without width scaling.",
+    "baseline_arm": "B_full",
+    "sequence_length": 2048,
+    "initialization_seed": 17,
+    "loss": 8.516984939575195,
+    "bad_parameter_gradient_tensor_count": 27,
+    "total_nonfinite_parameter_gradient_values": 23859712,
+    "not_eh1_specific": true,
+    "not_gradient_checkpointing_specific": true,
+    "not_bf16_autocast_specific": true
+  },
+  "backward_boundary_localization": {
+    "all_forward_tensors_sampled_finite": true,
+    "layer_11_output_max_abs_finite_grad": 0.009781697764992714,
+    "layer_10_output_max_abs_finite_grad": 154.93331909179688,
+    "layer_9_output_max_abs_finite_grad": 3617511.75,
+    "layer_8_output_max_abs_finite_grad": 67497852928.0,
+    "layer_7_output_max_abs_finite_grad": 1178577949163520.0,
+    "layer_6_output_max_abs_finite_grad": 2.211749662838856e19,
+    "layer_5_output_max_abs_finite_grad": 3.399426165994218e23,
+    "layer_4_output_max_abs_finite_grad": 6.46167013661252e27,
+    "layer_3_output_max_abs_finite_grad": 1.1156354319666075e32,
+    "layer_2_output_max_abs_finite_grad": 2.1143794032139255e36,
+    "first_observed_nonfinite_boundary": "backward propagation into layer-2 attention projections, followed by 6.25% non-finite activation gradients throughout layers 1 and 0",
+    "interpretation": "depthwise backward explosion at initialization, not an EH1 causal effect"
+  },
+  "pinned_reference_config": {
+    "repository": "microsoft/bitnet-b1.58-2B-4T-bf16",
+    "commit": "276681394656abdadb8e80e5b2c3db5e5d7fcaff",
+    "hidden_size": 2560,
+    "intermediate_size": 6912,
+    "num_hidden_layers": 30,
+    "initializer_range": 0.02,
+    "rms_norm_eps": 1e-05,
+    "hidden_act": "relu2",
+    "rope_theta": 500000.0
+  },
+  "amended_rule": {
+    "name": "WIDTH_SCALED_MASTER_INIT_V1",
+    "formula": "sigma_smoke = 0.02 * sqrt(2560 / hidden_size_smoke)",
+    "hidden_size_smoke": 1024,
+    "sigma_smoke": 0.0316227766016838,
+    "preserved_quantity": "initializer_range * sqrt(hidden_size)",
+    "application": "BitNetConfig.initializer_range for all four matched arms before matched slicing/copying; deterministic EH1 energy projection uses the same smoke initializer range",
+    "pairing": "all common tensors remain exact matched copies/slices of B_full within seed"
+  },
+  "stability_validation": {
+    "arm": "B_full",
+    "sequence_length": 2048,
+    "initialization_seed": 17,
+    "loss": 8.837102890014648,
+    "bad_parameter_gradient_tensor_count": 0,
+    "total_nonfinite_parameter_gradient_values": 0,
+    "max_abs_finite_parameter_gradient": 0.056989312171936035,
+    "verdict": "FIRST_BACKWARD_FINITE_PASS"
+  },
+  "source_rationale": {
+    "bitnet_report": "BitNet b1.58 2B4T reports forward-pass ternary absmean weight quantization, per-token int8 absmax activation quantization, SubLN, and native training from scratch.",
+    "foundation_transformer": "The cited SubLN source explicitly couples Sub-LayerNorm with initialization designed for stable scaling. The public BitNet report does not expose the exact 2B4T training initializer implementation.",
+    "scaling_status": "The width-scaling rule is therefore a documented Architecture-Smoke control inferred from the pinned reference configuration and first-backward preflight, not a claim about Microsoft's undisclosed production training recipe."
+  },
+  "forbidden_shortcuts": [
+    "Do not zero, clamp, or silently drop non-finite gradients.",
+    "Do not reinterpret the failed 0.02 initialization as an EH1 failure.",
+    "Do not claim WIDTH_SCALED_MASTER_INIT_V1 reproduces Microsoft's production initialization.",
+    "Do not compare arms initialized under different master-weight scaling rules."
+  ],
+  "claim_ceiling": "ARCHITECTURE_SMOKE / PRE_TRAINING_NUMERICAL_STABILITY_AMENDMENT",
+  "historical_qabs_state_unchanged": "BLOCKED_BITNET_2B4T_AGGREGATE_QABS"
+}

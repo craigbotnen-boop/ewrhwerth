@@ -1,0 +1,22 @@
+{
+    "engine_version": "2.0.5-ARCHIVAL",
+    "frozen_timestamp": "2026-01-25T19:32:00Z",
+    "gate_config": {
+        "r2_min": 0.99,
+        "floor_factor": 50.0,
+        "min_pts": 15
+    },
+    "window_policy": "LVW",
+    "diagnostics": [
+        "sigma",
+        "kappa",
+        "floor_ratio_min"
+    ],
+    "runtime_defaults": {
+        "n_walkers": 50000,
+        "n_steps": 1000,
+        "lazy_factor": 0.5
+    },
+    "audit_mode": "TRIPARTITE_NULL",
+    "provenance": "SHA256_ENABLED"
+}

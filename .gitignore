@@ -18,3 +18,7 @@ env/
 # OS
 .DS_Store
 Thumbs.db
+
+# Runtime outputs
+*.log
+archival_production_*_results.json

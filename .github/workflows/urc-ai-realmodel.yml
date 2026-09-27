@@ -1,0 +1,58 @@
+name: URC-AI real-model Gate 02
+
+on:
+  push:
+    branches:
+      - urc-ai-realmodel-20260927
+    paths:
+      - ".github/workflows/urc-ai-realmodel.yml"
+      - "urc_ai_realmodel/**"
+
+permissions:
+  contents: read
+
+jobs:
+  realmodel:
+    strategy:
+      fail-fast: false
+      matrix:
+        model_key: [qwen, pythia]
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      TOKENIZERS_PARALLELISM: "false"
+      OMP_NUM_THREADS: "4"
+      MKL_NUM_THREADS: "4"
+      OPENBLAS_NUM_THREADS: "4"
+      HF_HUB_DISABLE_TELEMETRY: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install CPU PyTorch
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch==2.5.1
+
+      - name: Install experiment dependencies
+        run: |
+          python -m pip install "transformers==4.57.3" accelerate safetensors sentencepiece scipy pandas
+
+      - name: Run frozen real-model experiment
+        run: |
+          mkdir -p "urc_ai_realmodel/results/${{ matrix.model_key }}"
+          python urc_ai_realmodel/realmodel_gate02.py \
+            --model-key "${{ matrix.model_key }}" \
+            --out "urc_ai_realmodel/results/${{ matrix.model_key }}"
+
+      - name: Upload compact results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: urc-ai-gate02-${{ matrix.model_key }}
+          path: urc_ai_realmodel/results/${{ matrix.model_key }}
+          if-no-files-found: warn
+          retention-days: 1

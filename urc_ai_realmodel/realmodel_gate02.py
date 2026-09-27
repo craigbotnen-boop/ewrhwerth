@@ -8,7 +8,7 @@ Models:
 
 The script does NOT fit or tune any target spectral dimension.
 It implements the frozen v0.5 reject-option protocol:
-  raw + top-p {0.85,0.90,0.95}, native + token-0 puncture,
+  raw + top-p {0.85,0.90,0.95}, native + token-0 and maximum-degree punctures,
   stationary-mode-subtracted heat trace,
   >=1.5 decades, R^2>=0.995, local d_S range<=0.15,
   IR cap tau <= 0.25/lambda_1.
@@ -343,7 +343,7 @@ def classify(df: pd.DataFrame, model_key: str):
 
     # Per task/layer/N threshold stability.
     stable_records = []
-    for variant in ["NATIVE", "PUNCTURE_TOKEN0"]:
+    for variant in ["NATIVE", "PUNCTURE_TOKEN0", "PUNCTURE_TOPDEG"]:
         dv = d[(d.variant == variant) & d["filter"].isin(["TOPP_085", "TOPP_090", "TOPP_095"])]
         for (task, layer, N), g in dv.groupby(["task", "layer", "N"]):
             ok = len(g) == 3 and (g.status == "PLATEAU_ACCEPTED").all()
@@ -390,7 +390,7 @@ def classify(df: pd.DataFrame, model_key: str):
                 )
 
     native = [x for x in scale_candidates if x["variant"] == "NATIVE"]
-    punct = [x for x in scale_candidates if x["variant"] == "PUNCTURE_TOKEN0"]
+    punct = [x for x in scale_candidates if x["variant"] != "NATIVE"]
 
     any_plateau = bool((d.status == "PLATEAU_ACCEPTED").any())
     raw_plateaux = int(
@@ -521,6 +521,24 @@ def main():
                         )
                         if recp is not None:
                             rows.append(recp)
+
+                        # Fixed maximum-degree puncture was preregistered in v0.5.
+                        Wb = (B + B.T) / 2.0
+                        topnode = int(np.argmax(Wb.sum(axis=1)))
+                        if topnode != 0:
+                            Bt = puncture(B, topnode)
+                            rect = analyze_variant(
+                                args.model_key,
+                                task,
+                                N,
+                                l,
+                                filt_name,
+                                "PUNCTURE_TOPDEG",
+                                Bt,
+                                weak,
+                            )
+                            if rect is not None:
+                                rows.append(rect)
 
                 # Expander-pivot resistance diagnostic only at N=512,
                 # representative early/mid/late layers, TOPP_090.

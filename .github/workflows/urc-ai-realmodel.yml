@@ -56,3 +56,5 @@ jobs:
           path: urc_ai_realmodel/results/${{ matrix.model_key }}
           if-no-files-found: warn
           retention-days: 1
+
+# rerun after preregistered max-degree puncture added

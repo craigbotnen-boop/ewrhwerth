@@ -43,6 +43,18 @@ jobs:
           git clone --depth 1 https://github.com/PootieT/entity-tracking-mi.git /tmp/entity-tracking-mi
           mkdir -p /tmp/entity_data
           cd /tmp/entity-tracking-mi/dataset_generation
+          # Upstream generator assumes random.sample accepts a set; Python 3.11 requires a sequence.
+          # Compatibility-only patch: deterministic sorted(set), no change to sampling criteria.
+          python - <<'PY'
+from pathlib import Path
+p=Path("generate_boxes_data_modified.py")
+s=p.read_text()
+old='random.sample(self.boxes[box], len(self.boxes[box]))'
+new='random.sample(sorted(self.boxes[box]), len(self.boxes[box]))'
+if old not in s:
+    raise SystemExit("compatibility patch target not found")
+p.write_text(s.replace(old,new))
+PY
           python generate_boxes_data_modified.py \
             --object_vocabulary_file ../data/objects/llama_friendly_objects.csv \
             --output_dir /tmp/entity_data \

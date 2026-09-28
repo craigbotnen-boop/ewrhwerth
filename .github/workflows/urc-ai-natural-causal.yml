@@ -11,6 +11,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: urc-ai-natural-causal-frozen
+  cancel-in-progress: true
+
 jobs:
   natural_causal:
     strategy:

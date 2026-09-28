@@ -1,0 +1,78 @@
+name: URC-AI external entity proxy
+
+on:
+  push:
+    branches:
+      - urc-ai-realmodel-20260927
+    paths:
+      - ".github/workflows/urc-ai-external-entity.yml"
+      - "urc_ai_realmodel/external_entity_proxy.py"
+
+permissions:
+  contents: read
+
+jobs:
+  external_entity:
+    strategy:
+      fail-fast: false
+      matrix:
+        model_key: [qwen05, qwen15]
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      TOKENIZERS_PARALLELISM: "false"
+      OMP_NUM_THREADS: "4"
+      MKL_NUM_THREADS: "4"
+      OPENBLAS_NUM_THREADS: "4"
+      HF_HUB_DISABLE_TELEMETRY: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install CPU PyTorch
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch==2.5.1
+      - name: Install dependencies
+        run: |
+          python -m pip install "transformers==4.57.3" accelerate safetensors sentencepiece scipy pandas scikit-learn numpy
+      - name: Generate independent ICML-2026 entity data
+        shell: bash
+        run: |
+          git clone --depth 1 https://github.com/PootieT/entity-tracking-mi.git /tmp/entity-tracking-mi
+          mkdir -p /tmp/entity_data
+          cd /tmp/entity-tracking-mi/dataset_generation
+          python generate_boxes_data_modified.py \
+            --object_vocabulary_file ../data/objects/llama_friendly_objects.csv \
+            --output_dir /tmp/entity_data \
+            --alternative_forms always \
+            --num_samples 300 \
+            --allowed_operations put \
+            --num_operations 2 \
+            --fix_object_count_per_phrase 1 \
+            --seed 20260927
+          find /tmp/entity_data -maxdepth 2 -type f -print
+      - name: Run external causal-proxy replication
+        shell: bash
+        run: |
+          DATA=$(find /tmp/entity_data -type f -name '*train*t5.jsonl' | head -1)
+          if [ -z "$DATA" ]; then
+            echo "Could not locate generated train-t5.jsonl" >&2
+            exit 1
+          fi
+          mkdir -p "urc_ai_realmodel/external_entity/${{ matrix.model_key }}"
+          if [ "${{ matrix.model_key }}" = "qwen15" ]; then N=12; else N=20; fi
+          python urc_ai_realmodel/external_entity_proxy.py \
+            --model-key "${{ matrix.model_key }}" \
+            --data "$DATA" \
+            --out "urc_ai_realmodel/external_entity/${{ matrix.model_key }}" \
+            --n "$N"
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: urc-ai-external-entity-${{ matrix.model_key }}
+          path: urc_ai_realmodel/external_entity/${{ matrix.model_key }}
+          if-no-files-found: warn
+          retention-days: 1

@@ -284,18 +284,47 @@ def main():
             probe_preds[li]=int(probes[li].predict(h[None,:])[0])
             probe_probs[li]=float(probes[li].predict_proba(h[None,:])[0,1])
         raw_pred=int(rawclf.predict(vec.transform([text]))[0])
+        donor_raw_pred=int(rawclf.predict(vec.transform([donor_text]))[0])
+        donor_probe_preds={}
+        for li in layers:
+            dh=od.hidden_states[li+1][0,-1,:].detach().float().cpu().numpy()
+            donor_probe_preds[li]=int(probes[li].predict(dh[None,:])[0])
 
         # donor direction is B => increasing margin is toward donor answer
         causal_shift=float(dmargin[causal_pos]); distractor_shift=float(dmargin[distractor_pos])
+        full_gap=float(donor_margin-base_margin)
+        causal_recovery=float(causal_shift/full_gap) if abs(full_gap)>1e-9 else np.nan
+        distractor_recovery=float(distractor_shift/full_gap) if abs(full_gap)>1e-9 else np.nan
+
+        # Rank/localization diagnostics (1 = most influential / highest proxy score).
+        def desc_rank(v,pos):
+            order=np.argsort(-np.asarray(v,float))
+            return int(np.flatnonzero(order==pos)[0])+1
+        causal_rank_patch=desc_rank(causal,causal_pos)
+        causal_rank_contrib=desc_rank(contrib,causal_pos)
+        causal_rank_raw=desc_rank(raw,causal_pos)
+        causal_rank_jac=desc_rank(jac,causal_pos)
+        distractor_rank_patch=desc_rank(causal,distractor_pos)
+        top5_patch=set(np.argsort(-causal)[:5].tolist())
+        top5_contrib=set(np.argsort(-contrib)[:5].tolist())
+        top5_jac=set(np.argsort(-jac)[:5].tolist())
         prof=pd.DataFrame({"pair_id":p["pair_id"],"source":np.arange(len(raw)),"raw_attention":raw,
                            "contribution":contrib,"patch_hidden":causal,"patch_margin_signed":dmargin,"jacobian_margin_grad":jac})
         profiles.append(prof)
         valid=np.arange(len(raw)-1)
         exrows.append({
-          "pair_id":p["pair_id"],"N":len(raw),"model_pred":1 if base_pred=="B" else 0,"model_correct":int(base_pred=="A"),
+          "pair_id":p["pair_id"],"N":len(raw),
+          "model_pred":1 if base_pred=="B" else 0,"model_correct":int(base_pred=="A"),
+          "donor_model_pred":1 if donor_pred=="B" else 0,"donor_model_correct":int(donor_pred=="B"),
+          "pair_model_accuracy":0.5*(int(base_pred=="A")+int(donor_pred=="B")),
           "raw_unigram_pred":raw_pred,"raw_unigram_correct":int(raw_pred==0),
+          "donor_raw_unigram_pred":donor_raw_pred,"donor_raw_unigram_correct":int(donor_raw_pred==1),
+          "pair_raw_unigram_accuracy":0.5*(int(raw_pred==0)+int(donor_raw_pred==1)),
           **{f"probe_L{li}_pred":probe_preds[li] for li in layers},
           **{f"probe_L{li}_correct":int(probe_preds[li]==0) for li in layers},
+          **{f"donor_probe_L{li}_pred":donor_probe_preds[li] for li in layers},
+          **{f"donor_probe_L{li}_correct":int(donor_probe_preds[li]==1) for li in layers},
+          **{f"pair_probe_L{li}_accuracy":0.5*(int(probe_preds[li]==0)+int(donor_probe_preds[li]==1)) for li in layers},
           "rho_raw_patch":rank_corr(raw[valid],causal[valid]),
           "rho_contrib_patch":rank_corr(contrib[valid],causal[valid]),
           "rho_jac_patch":rank_corr(jac[valid],np.abs(dmargin[valid])),
@@ -303,9 +332,17 @@ def main():
           "rho_contrib_jac":rank_corr(contrib[valid],jac[valid]),
           "causal_pos":causal_pos,"distractor_pos":distractor_pos,
           "causal_patch_hidden":float(causal[causal_pos]),"distractor_patch_hidden":float(causal[distractor_pos]),
+          "base_margin":base_margin,"donor_margin":donor_margin,"full_counterfactual_margin_gap":full_gap,
           "causal_patch_margin_shift":causal_shift,"distractor_patch_margin_shift":distractor_shift,
+          "causal_recovery_fraction":causal_recovery,"distractor_recovery_fraction":distractor_recovery,
           "causal_moves_toward_donor":int(causal_shift>0),
           "distractor_moves_toward_donor":int(distractor_shift>0),
+          "causal_rank_patch":causal_rank_patch,"causal_rank_contribution":causal_rank_contrib,
+          "causal_rank_rawattention":causal_rank_raw,"causal_rank_jacobian":causal_rank_jac,
+          "distractor_rank_patch":distractor_rank_patch,
+          "causal_in_top5_patch":int(causal_pos in top5_patch),
+          "causal_in_top5_contribution":int(causal_pos in top5_contrib),
+          "causal_in_top5_jacobian":int(causal_pos in top5_jac),
           **{f"causal_shift_L{li}":float(m-lm[0]+(lm[0]-base_margin)) if False else float(m-base_margin) for li,m in zip(layers,lm)},
         })
         del o,od;gc.collect()
@@ -317,8 +354,10 @@ def main():
     pd.concat(profiles,ignore_index=True).to_csv(out/"natural_causal_profiles.csv",index=False)
     summary={
       "model":a.model_key,"model_id":mid,"family":family,"layers":layers,"n_test":len(df),
-      "model_accuracy":float(df.model_correct.mean()),"raw_unigram_accuracy":float(df.raw_unigram_correct.mean()),
-      "probe_accuracy":{str(li):float(df[f"probe_L{li}_correct"].mean()) for li in layers},
+      "model_accuracy_baseA":float(df.model_correct.mean()),
+      "model_accuracy_balanced_pairs":float(df.pair_model_accuracy.mean()),
+      "raw_unigram_accuracy_balanced_pairs":float(df.pair_raw_unigram_accuracy.mean()),
+      "probe_accuracy_balanced_pairs":{str(li):float(df[f"pair_probe_L{li}_accuracy"].mean()) for li in layers},
       "median_rho_raw_vs_patch":float(df.rho_raw_patch.median()),
       "median_rho_contribution_vs_patch":float(df.rho_contrib_patch.median()),
       "median_rho_jacobian_vs_margin_patch":float(df.rho_jac_patch.median()),
@@ -332,6 +371,15 @@ def main():
       "median_distractor_hidden_effect":float(df.distractor_patch_hidden.median()),
       "median_causal_margin_shift":float(df.causal_patch_margin_shift.median()),
       "median_distractor_margin_shift":float(df.distractor_patch_margin_shift.median()),
+      "median_causal_recovery_fraction":float(df.causal_recovery_fraction.replace([np.inf,-np.inf],np.nan).median()),
+      "median_distractor_recovery_fraction":float(df.distractor_recovery_fraction.replace([np.inf,-np.inf],np.nan).median()),
+      "median_causal_rank_patch":float(df.causal_rank_patch.median()),
+      "median_causal_rank_contribution":float(df.causal_rank_contribution.median()),
+      "median_causal_rank_rawattention":float(df.causal_rank_rawattention.median()),
+      "median_causal_rank_jacobian":float(df.causal_rank_jacobian.median()),
+      "causal_top5_patch_fraction":float(df.causal_in_top5_patch.mean()),
+      "causal_top5_contribution_fraction":float(df.causal_in_top5_contribution.mean()),
+      "causal_top5_jacobian_fraction":float(df.causal_in_top5_jacobian.mean()),
       "layer_causal_shift_median":{str(li):float(df[f"causal_shift_L{li}"].median()) for li in layers},
       "task_definition":"Matched natural-language state-copying stories; causal A/B swap flips key location; distractor A/B token is counter-swapped to preserve unigram counts.",
       "claim_boundary":"Activation patching and scalar-logit Jacobian gradients are intervention/local-sensitivity diagnostics. They do not by themselves establish a complete causal graph of the model."

@@ -190,7 +190,7 @@ def jacobian_margin_profile(model,layer,ids,idA,idB):
         handle.remove()
         for p,r in zip(model.parameters(),old):p.requires_grad_(r)
         model.zero_grad(set_to_none=True)
-    return prof
+    return prof,g
 
 def rank_corr(x,y):
     r=spearmanr(x,y,nan_policy="omit").statistic
@@ -267,7 +267,8 @@ def main():
             hf,mg=patch_batch(model,cap.layers[middle],ids,donor_mid,poss,idA,idB)
             causal[poss]=np.linalg.norm(hf-base_h[None,:],axis=1)/patch_norm[poss]
             dmargin[poss]=mg-base_margin
-        jac=jacobian_margin_profile(model,cap.layers[middle],ids,idA,idB)
+        jac,jac_vec=jacobian_margin_profile(model,cap.layers[middle],ids,idA,idB)
+        attr_patch=np.einsum("nd,nd->n",(donor_mid-base_mid).numpy(),jac_vec,optimize=True)
 
         # Layer dependence of causal-token intervention.
         layer_margins=patch_multi_layer_single_token(model,[cap.layers[l] for l in layers],ids,
@@ -304,12 +305,15 @@ def main():
         causal_rank_contrib=desc_rank(contrib,causal_pos)
         causal_rank_raw=desc_rank(raw,causal_pos)
         causal_rank_jac=desc_rank(jac,causal_pos)
+        causal_rank_attr=desc_rank(np.abs(attr_patch),causal_pos)
         distractor_rank_patch=desc_rank(causal,distractor_pos)
         top5_patch=set(np.argsort(-causal)[:5].tolist())
         top5_contrib=set(np.argsort(-contrib)[:5].tolist())
         top5_jac=set(np.argsort(-jac)[:5].tolist())
+        top5_attr=set(np.argsort(-np.abs(attr_patch))[:5].tolist())
         prof=pd.DataFrame({"pair_id":p["pair_id"],"source":np.arange(len(raw)),"raw_attention":raw,
-                           "contribution":contrib,"patch_hidden":causal,"patch_margin_signed":dmargin,"jacobian_margin_grad":jac})
+                           "contribution":contrib,"patch_hidden":causal,"patch_margin_signed":dmargin,
+                           "jacobian_margin_grad":jac,"attribution_patch_estimate":attr_patch})
         profiles.append(prof)
         valid=np.arange(len(raw)-1)
         exrows.append({
@@ -330,6 +334,8 @@ def main():
           "rho_jac_patch":rank_corr(jac[valid],np.abs(dmargin[valid])),
           "rho_jac_hiddenpatch":rank_corr(jac[valid],causal[valid]),
           "rho_contrib_jac":rank_corr(contrib[valid],jac[valid]),
+          "rho_attrpatch_marginpatch":rank_corr(attr_patch[valid],dmargin[valid]),
+          "rho_abs_attrpatch_abs_marginpatch":rank_corr(np.abs(attr_patch[valid]),np.abs(dmargin[valid])),
           "causal_pos":causal_pos,"distractor_pos":distractor_pos,
           "causal_patch_hidden":float(causal[causal_pos]),"distractor_patch_hidden":float(causal[distractor_pos]),
           "base_margin":base_margin,"donor_margin":donor_margin,"full_counterfactual_margin_gap":full_gap,
@@ -339,10 +345,14 @@ def main():
           "distractor_moves_toward_donor":int(distractor_shift>0),
           "causal_rank_patch":causal_rank_patch,"causal_rank_contribution":causal_rank_contrib,
           "causal_rank_rawattention":causal_rank_raw,"causal_rank_jacobian":causal_rank_jac,
+          "causal_rank_attribution_patch":causal_rank_attr,
           "distractor_rank_patch":distractor_rank_patch,
           "causal_in_top5_patch":int(causal_pos in top5_patch),
           "causal_in_top5_contribution":int(causal_pos in top5_contrib),
           "causal_in_top5_jacobian":int(causal_pos in top5_jac),
+          "causal_in_top5_attribution_patch":int(causal_pos in top5_attr),
+          "causal_attrpatch_estimate":float(attr_patch[causal_pos]),
+          "distractor_attrpatch_estimate":float(attr_patch[distractor_pos]),
           **{f"causal_shift_L{li}":float(m-lm[0]+(lm[0]-base_margin)) if False else float(m-base_margin) for li,m in zip(layers,lm)},
         })
         del o,od;gc.collect()
@@ -363,6 +373,8 @@ def main():
       "median_rho_jacobian_vs_margin_patch":float(df.rho_jac_patch.median()),
       "median_rho_jacobian_vs_hidden_patch":float(df.rho_jac_hiddenpatch.median()),
       "median_rho_contribution_vs_jacobian":float(df.rho_contrib_jac.median()),
+      "median_rho_attribution_patch_vs_finite_margin_patch":float(df.rho_attrpatch_marginpatch.median()),
+      "median_rho_abs_attribution_patch_vs_abs_finite_margin_patch":float(df.rho_abs_attrpatch_abs_marginpatch.median()),
       "rho_contribution_patch_bootstrap95":bootstrap_median(df.rho_contrib_patch),
       "rho_jac_patch_bootstrap95":bootstrap_median(df.rho_jac_patch),
       "causal_patch_toward_donor_fraction":float(df.causal_moves_toward_donor.mean()),
@@ -377,9 +389,11 @@ def main():
       "median_causal_rank_contribution":float(df.causal_rank_contribution.median()),
       "median_causal_rank_rawattention":float(df.causal_rank_rawattention.median()),
       "median_causal_rank_jacobian":float(df.causal_rank_jacobian.median()),
+      "median_causal_rank_attribution_patch":float(df.causal_rank_attribution_patch.median()),
       "causal_top5_patch_fraction":float(df.causal_in_top5_patch.mean()),
       "causal_top5_contribution_fraction":float(df.causal_in_top5_contribution.mean()),
       "causal_top5_jacobian_fraction":float(df.causal_in_top5_jacobian.mean()),
+      "causal_top5_attribution_patch_fraction":float(df.causal_in_top5_attribution_patch.mean()),
       "layer_causal_shift_median":{str(li):float(df[f"causal_shift_L{li}"].median()) for li in layers},
       "task_definition":"Matched natural-language state-copying stories; causal A/B swap flips key location; distractor A/B token is counter-swapped to preserve unigram counts.",
       "claim_boundary":"Activation patching and scalar-logit Jacobian gradients are intervention/local-sensitivity diagnostics. They do not by themselves establish a complete causal graph of the model."

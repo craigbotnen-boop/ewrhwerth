@@ -104,8 +104,10 @@ def main():
         base_mid=o.hidden_states[mid+1][0].detach().float().cpu()
         donor_mid=od.hidden_states[mid+1][0].detach().float().cpu()
         delta=donor_mid-base_mid
+        source_delta_norm=np.linalg.norm(delta.numpy(),axis=1)+1e-9
         hf,mg=patch_pair(m,cap.layers[mid],ids,donor_mid,[cpos,dpos],idA,idB)
-        hdelta=np.linalg.norm(hf-base_final[None,:],axis=1)
+        hdelta_raw=np.linalg.norm(hf-base_final[None,:],axis=1)
+        hdelta=hdelta_raw/source_delta_norm[[cpos,dpos]]
         md=mg-bm
         jac=jac_directional(m,cap.layers[mid],ids,delta,idA,idB,[cpos,dpos])
         # early/late causal-token patch
@@ -120,6 +122,8 @@ def main():
             "raw_rank_causal":rank_desc(raw,cpos),"raw_rank_distractor":rank_desc(raw,dpos),
             "contrib_rank_causal":rank_desc(contrib,cpos),"contrib_rank_distractor":rank_desc(contrib,dpos),
             "causal_hidden_effect":float(hdelta[0]),"distractor_hidden_effect":float(hdelta[1]),
+            "causal_hidden_effect_raw":float(hdelta_raw[0]),"distractor_hidden_effect_raw":float(hdelta_raw[1]),
+            "causal_source_delta_norm":float(source_delta_norm[cpos]),"distractor_source_delta_norm":float(source_delta_norm[dpos]),
             "causal_margin_shift":float(md[0]),"distractor_margin_shift":float(md[1]),
             "causal_toward_donor":int(md[0]>0),"distractor_toward_donor":int(md[1]>0),
             "jac_attr_causal":jac[0],"jac_attr_distractor":jac[1],

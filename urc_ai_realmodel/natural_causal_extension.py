@@ -70,8 +70,8 @@ def label_ids(tok):
             return ia[0],ib[0],a,b
     raise RuntimeError("Could not find single-token A/B labels")
 
-def story(source,target,distractor,causal,later,verb,copy_phrase,variant=0):
-    opp="B" if causal=="A" else "A"
+def story(source,target,distractor,causal,later,verb,copy_phrase,variant=0,distractor_room=None):
+    opp=distractor_room if distractor_room is not None else ("B" if causal=="A" else "A")
     text=(
       "Two rooms are labeled A and B. Track the objects exactly. "
       f"Initially, the {source} is in room A, the {target} is in room B, "
@@ -94,9 +94,15 @@ def make_pairs(n_pairs=160):
         later="A" if rng.random()<.5 else "B"
         verb=VERB1[pid%len(VERB1)]
         cp=COPY_PHRASES[(pid//2)%len(COPY_PHRASES)]
-        a=story(source,target,distractor,"A",later,verb,cp,0)
-        b=story(source,target,distractor,"B",later,verb,cp,1)
-        pairs.append({"pair_id":pid,"A":a,"B":b,"source":source,"target":target,"distractor":distractor})
+        # Balanced behavioral pair: A/B counts are identical across A and B.
+        a=story(source,target,distractor,"A",later,verb,cp,0,distractor_room="B")
+        b=story(source,target,distractor,"B",later,verb,cp,1,distractor_room="A")
+        # Mechanistic donors differ from base at exactly one lexical site.
+        b_causal_only=story(source,target,distractor,"B",later,verb,cp,2,distractor_room="B")
+        a_distractor_only=story(source,target,distractor,"A",later,verb,cp,3,distractor_room="A")
+        pairs.append({"pair_id":pid,"A":a,"B":b,
+                      "B_causal_only":b_causal_only,"A_distractor_only":a_distractor_only,
+                      "source":source,"target":target,"distractor":distractor})
     return pairs
 
 def probe():
@@ -240,64 +246,109 @@ def main():
 
     exrows=[];profiles=[]
     for qi,p in enumerate(pairs[a.train_pairs:a.train_pairs+a.test_pairs]):
-        # base A, donor B; exact matched counterfactual
-        text=p["A"]; donor_text=p["B"]; target=0; donor_target=1
+        # Balanced A/B pair is used only for behavior/probe controls.
+        text=p["A"]; balanced_donor_text=p["B"]
+        # Mechanistic donors each change exactly one token from the base.
+        causal_donor_text=p["B_causal_only"]
+        distractor_donor_text=p["A_distractor_only"]
+
         ids,o,base_h,base_margin,base_pred=build_single(model,tok,cap,text,idA,idB,need_attn=True)
-        dids,od,donor_final,donor_margin,donor_pred=build_single(model,tok,cap,donor_text,idA,idB,need_attn=False)
-        if ids.shape!=dids.shape:
-            print("skip length mismatch",qi,ids.shape,dids.shape,flush=True);del o,od;continue
-        arrA=ids[0].numpy();arrB=dids[0].numpy();diff=np.flatnonzero(arrA!=arrB)
-        if len(diff)!=2:
-            print("skip diff count",qi,len(diff),flush=True);del o,od;continue
-        causal_pos=int(diff[0]);distractor_pos=int(diff[1])
-        # verify textual order: causal counterfactual appears before counterbalancing distractor
-        # contribution/raw ranking at middle
+        base_value_capture=cap.values[middle].clone()
+        base_mid_by_layer={li:o.hidden_states[li+1][0].detach().float().cpu() for li in layers}
+        base_mid=base_mid_by_layer[middle]
+
+        # Full balanced donor for unbiased A/B behavioral scoring.
+        dids,od,balanced_final,balanced_margin,balanced_pred=build_single(
+            model,tok,cap,balanced_donor_text,idA,idB,need_attn=False)
+
+        # Causal-only donor (answer flips A -> B).
+        cids,oc,causal_final,causal_donor_margin,causal_donor_pred=build_single(
+            model,tok,cap,causal_donor_text,idA,idB,need_attn=False)
+        causal_h_by_layer={li:oc.hidden_states[li+1][0].detach().float().cpu() for li in layers}
+
+        # Distractor-only donor (answer remains A).
+        xids,ox,distractor_final,distractor_donor_margin,distractor_donor_pred=build_single(
+            model,tok,cap,distractor_donor_text,idA,idB,need_attn=False)
+        distractor_h_by_layer={li:ox.hidden_states[li+1][0].detach().float().cpu() for li in layers}
+
+        if not (ids.shape==dids.shape==cids.shape==xids.shape):
+            print("skip length mismatch",qi,ids.shape,dids.shape,cids.shape,xids.shape,flush=True)
+            del o,od,oc,ox
+            continue
+
+        arr0=ids[0].numpy()
+        diff_bal=np.flatnonzero(arr0!=dids[0].numpy())
+        diff_causal=np.flatnonzero(arr0!=cids[0].numpy())
+        diff_dist=np.flatnonzero(arr0!=xids[0].numpy())
+        if len(diff_bal)!=2 or len(diff_causal)!=1 or len(diff_dist)!=1:
+            print("skip diff counts",qi,len(diff_bal),len(diff_causal),len(diff_dist),flush=True)
+            del o,od,oc,ox
+            continue
+        causal_pos=int(diff_causal[0]); distractor_pos=int(diff_dist[0])
+        if not causal_pos < distractor_pos:
+            print("skip unexpected diff order",qi,causal_pos,distractor_pos,flush=True)
+            del o,od,oc,ox
+            continue
+
+        # Raw attention and forward-only contribution proxy from the BASE run.
         Ah=o.attentions[middle][0].detach().float().cpu().numpy()
         raw=Ah[:,-1,:].mean(0)
-        hn=head_norms(model,family,middle,cap.values[middle])
+        hn=head_norms(model,family,middle,base_value_capture)
         contrib=contribution_target(Ah,hn)
-        base_mid=o.hidden_states[middle+1][0].detach().float().cpu()
-        donor_h_by_layer={li:od.hidden_states[li+1][0].detach().float().cpu() for li in layers}
-        donor_mid=donor_h_by_layer[middle]
-        patch_norm=torch.norm(donor_mid-base_mid,dim=1).numpy()+1e-9
 
+        # Full source-position patch profile uses the causal-only donor.
+        causal_mid=causal_h_by_layer[middle]
+        patch_norm=torch.norm(causal_mid-base_mid,dim=1).numpy()+1e-9
         causal=np.zeros(ids.shape[1]);dmargin=np.zeros(ids.shape[1])
         for s in range(0,ids.shape[1],a.patch_batch):
             poss=list(range(s,min(ids.shape[1],s+a.patch_batch)))
-            hf,mg=patch_batch(model,cap.layers[middle],ids,donor_mid,poss,idA,idB)
+            hf,mg=patch_batch(model,cap.layers[middle],ids,causal_mid,poss,idA,idB)
             causal[poss]=np.linalg.norm(hf-base_h[None,:],axis=1)/patch_norm[poss]
             dmargin[poss]=mg-base_margin
+
+        # Local gradient and first-order attribution-patching estimate for the SAME causal donor.
         jac,jac_vec=jacobian_margin_profile(model,cap.layers[middle],ids,idA,idB)
-        attr_patch=np.einsum("nd,nd->n",(donor_mid-base_mid).numpy(),jac_vec,optimize=True)
+        attr_patch=np.einsum("nd,nd->n",(causal_mid-base_mid).numpy(),jac_vec,optimize=True)
 
-        # Layer dependence of causal-token intervention.
-        layer_margins=patch_multi_layer_single_token(model,[cap.layers[l] for l in layers],ids,
-                                                     {cap.layers[l]:donor_h_by_layer[l] for l in []},causal_pos,idA,idB) if False else None
-        lm=[]
+        # Clean negative control: patch only the independently changed distractor token
+        # from a donor whose ground-truth answer stays A.
+        distractor_mid=distractor_h_by_layer[middle]
+        dhf,dmg=patch_batch(model,cap.layers[middle],ids,distractor_mid,[distractor_pos],idA,idB)
+        distractor_patch_norm=float(torch.norm(distractor_mid[distractor_pos]-base_mid[distractor_pos]).item())+1e-9
+        distractor_hidden_effect=float(np.linalg.norm(dhf[0]-base_h)/distractor_patch_norm)
+        distractor_shift=float(dmg[0]-base_margin)
+        distractor_attr_est=float(np.dot(
+            (distractor_mid[distractor_pos]-base_mid[distractor_pos]).numpy(),
+            jac_vec[distractor_pos]
+        ))
+
+        # Layer dependence: causal-only and distractor-only patches at early/mid/late layers.
+        lm=[]; dlm=[]
         for li in layers:
-            _,mg=patch_batch(model,cap.layers[li],ids,donor_h_by_layer[li],[causal_pos],idA,idB)
+            _,mg=patch_batch(model,cap.layers[li],ids,causal_h_by_layer[li],[causal_pos],idA,idB)
             lm.append(float(mg[0]))
+            _,dmg_li=patch_batch(model,cap.layers[li],ids,distractor_h_by_layer[li],[distractor_pos],idA,idB)
+            dlm.append(float(dmg_li[0]))
 
-        # probe and readout controls
-        probe_preds={};probe_probs={}
+        # Balanced probe and readout controls use base A vs full balanced B.
+        probe_preds={};probe_probs={};donor_probe_preds={}
         for li in layers:
             h=o.hidden_states[li+1][0,-1,:].detach().float().cpu().numpy()
             probe_preds[li]=int(probes[li].predict(h[None,:])[0])
             probe_probs[li]=float(probes[li].predict_proba(h[None,:])[0,1])
-        raw_pred=int(rawclf.predict(vec.transform([text]))[0])
-        donor_raw_pred=int(rawclf.predict(vec.transform([donor_text]))[0])
-        donor_probe_preds={}
-        for li in layers:
             dh=od.hidden_states[li+1][0,-1,:].detach().float().cpu().numpy()
             donor_probe_preds[li]=int(probes[li].predict(dh[None,:])[0])
+        raw_pred=int(rawclf.predict(vec.transform([text]))[0])
+        donor_raw_pred=int(rawclf.predict(vec.transform([balanced_donor_text]))[0])
 
-        # donor direction is B => increasing margin is toward donor answer
-        causal_shift=float(dmargin[causal_pos]); distractor_shift=float(dmargin[distractor_pos])
-        full_gap=float(donor_margin-base_margin)
+        # Causal donor direction is B => increasing B-A margin is the predicted direction.
+        causal_shift=float(dmargin[causal_pos])
+        full_gap=float(causal_donor_margin-base_margin)
         causal_recovery=float(causal_shift/full_gap) if abs(full_gap)>1e-9 else np.nan
+        # Distractor donor has same answer A, so its "recovery" is defined only relative
+        # to the causal full-gap magnitude for scale comparison.
         distractor_recovery=float(distractor_shift/full_gap) if abs(full_gap)>1e-9 else np.nan
 
-        # Rank/localization diagnostics (1 = most influential / highest proxy score).
         def desc_rank(v,pos):
             order=np.argsort(-np.asarray(v,float))
             return int(np.flatnonzero(order==pos)[0])+1
@@ -306,21 +357,29 @@ def main():
         causal_rank_raw=desc_rank(raw,causal_pos)
         causal_rank_jac=desc_rank(jac,causal_pos)
         causal_rank_attr=desc_rank(np.abs(attr_patch),causal_pos)
-        distractor_rank_patch=desc_rank(causal,distractor_pos)
+        causalprofile_distractor_rank=desc_rank(causal,distractor_pos)
         top5_patch=set(np.argsort(-causal)[:5].tolist())
         top5_contrib=set(np.argsort(-contrib)[:5].tolist())
         top5_jac=set(np.argsort(-jac)[:5].tolist())
         top5_attr=set(np.argsort(-np.abs(attr_patch))[:5].tolist())
-        prof=pd.DataFrame({"pair_id":p["pair_id"],"source":np.arange(len(raw)),"raw_attention":raw,
-                           "contribution":contrib,"patch_hidden":causal,"patch_margin_signed":dmargin,
-                           "jacobian_margin_grad":jac,"attribution_patch_estimate":attr_patch})
+
+        prof=pd.DataFrame({
+            "pair_id":p["pair_id"],"source":np.arange(len(raw)),
+            "raw_attention":raw,"contribution":contrib,
+            "patch_hidden_causal_donor":causal,
+            "patch_margin_signed_causal_donor":dmargin,
+            "jacobian_margin_grad":jac,
+            "attribution_patch_estimate_causal_donor":attr_patch
+        })
         profiles.append(prof)
         valid=np.arange(len(raw)-1)
         exrows.append({
           "pair_id":p["pair_id"],"N":len(raw),
           "model_pred":1 if base_pred=="B" else 0,"model_correct":int(base_pred=="A"),
-          "donor_model_pred":1 if donor_pred=="B" else 0,"donor_model_correct":int(donor_pred=="B"),
-          "pair_model_accuracy":0.5*(int(base_pred=="A")+int(donor_pred=="B")),
+          "donor_model_pred":1 if balanced_pred=="B" else 0,"donor_model_correct":int(balanced_pred=="B"),
+          "pair_model_accuracy":0.5*(int(base_pred=="A")+int(balanced_pred=="B")),
+          "causal_donor_model_correct":int(causal_donor_pred=="B"),
+          "distractor_donor_model_correct":int(distractor_donor_pred=="A"),
           "raw_unigram_pred":raw_pred,"raw_unigram_correct":int(raw_pred==0),
           "donor_raw_unigram_pred":donor_raw_pred,"donor_raw_unigram_correct":int(donor_raw_pred==1),
           "pair_raw_unigram_accuracy":0.5*(int(raw_pred==0)+int(donor_raw_pred==1)),
@@ -337,27 +396,40 @@ def main():
           "rho_attrpatch_marginpatch":rank_corr(attr_patch[valid],dmargin[valid]),
           "rho_abs_attrpatch_abs_marginpatch":rank_corr(np.abs(attr_patch[valid]),np.abs(dmargin[valid])),
           "causal_pos":causal_pos,"distractor_pos":distractor_pos,
-          "causal_patch_hidden":float(causal[causal_pos]),"distractor_patch_hidden":float(causal[distractor_pos]),
-          "base_margin":base_margin,"donor_margin":donor_margin,"full_counterfactual_margin_gap":full_gap,
-          "causal_patch_margin_shift":causal_shift,"distractor_patch_margin_shift":distractor_shift,
-          "causal_recovery_fraction":causal_recovery,"distractor_recovery_fraction":distractor_recovery,
+          "causal_patch_hidden":float(causal[causal_pos]),
+          "distractor_patch_hidden":distractor_hidden_effect,
+          "base_margin":base_margin,
+          "balanced_donor_margin":balanced_margin,
+          "causal_donor_margin":causal_donor_margin,
+          "distractor_donor_margin":distractor_donor_margin,
+          "full_counterfactual_margin_gap":full_gap,
+          "causal_patch_margin_shift":causal_shift,
+          "distractor_patch_margin_shift":distractor_shift,
+          "causal_recovery_fraction":causal_recovery,
+          "distractor_recovery_fraction":distractor_recovery,
           "causal_moves_toward_donor":int(causal_shift>0),
-          "distractor_moves_toward_donor":int(distractor_shift>0),
-          "causal_rank_patch":causal_rank_patch,"causal_rank_contribution":causal_rank_contrib,
-          "causal_rank_rawattention":causal_rank_raw,"causal_rank_jacobian":causal_rank_jac,
+          # distractor has no target-direction prediction; report absolute effect separately.
+          "causal_rank_patch":causal_rank_patch,
+          "causal_rank_contribution":causal_rank_contrib,
+          "causal_rank_rawattention":causal_rank_raw,
+          "causal_rank_jacobian":causal_rank_jac,
           "causal_rank_attribution_patch":causal_rank_attr,
-          "distractor_rank_patch":distractor_rank_patch,
+          "causalprofile_distractorpos_rank":causalprofile_distractor_rank,
           "causal_in_top5_patch":int(causal_pos in top5_patch),
           "causal_in_top5_contribution":int(causal_pos in top5_contrib),
           "causal_in_top5_jacobian":int(causal_pos in top5_jac),
           "causal_in_top5_attribution_patch":int(causal_pos in top5_attr),
           "causal_attrpatch_estimate":float(attr_patch[causal_pos]),
-          "distractor_attrpatch_estimate":float(attr_patch[distractor_pos]),
-          **{f"causal_shift_L{li}":float(m-lm[0]+(lm[0]-base_margin)) if False else float(m-base_margin) for li,m in zip(layers,lm)},
+          "distractor_attrpatch_estimate":distractor_attr_est,
+          **{f"causal_shift_L{li}":float(m-base_margin) for li,m in zip(layers,lm)},
+          **{f"distractor_shift_L{li}":float(m-base_margin) for li,m in zip(layers,dlm)},
         })
-        del o,od;gc.collect()
-        print(a.model_key,qi+1,"/",a.test_pairs,"rhoC",round(exrows[-1]["rho_contrib_patch"],3),
-              "rhoJ",round(exrows[-1]["rho_jac_patch"],3),"causal_shift",round(causal_shift,3),flush=True)
+        del o,od,oc,ox;gc.collect()
+        print(a.model_key,qi+1,"/",a.test_pairs,
+              "rhoC",round(exrows[-1]["rho_contrib_patch"],3),
+              "rhoAP",round(exrows[-1]["rho_attrpatch_marginpatch"],3),
+              "causal_shift",round(causal_shift,3),
+              "dist_shift",round(distractor_shift,3),flush=True)
     cap.close()
 
     df=pd.DataFrame(exrows);df.to_csv(out/"natural_causal_examples.csv",index=False)
@@ -378,7 +450,6 @@ def main():
       "rho_contribution_patch_bootstrap95":bootstrap_median(df.rho_contrib_patch),
       "rho_jac_patch_bootstrap95":bootstrap_median(df.rho_jac_patch),
       "causal_patch_toward_donor_fraction":float(df.causal_moves_toward_donor.mean()),
-      "distractor_patch_toward_donor_fraction":float(df.distractor_moves_toward_donor.mean()),
       "median_causal_hidden_effect":float(df.causal_patch_hidden.median()),
       "median_distractor_hidden_effect":float(df.distractor_patch_hidden.median()),
       "median_causal_margin_shift":float(df.causal_patch_margin_shift.median()),
@@ -395,7 +466,8 @@ def main():
       "causal_top5_jacobian_fraction":float(df.causal_in_top5_jacobian.mean()),
       "causal_top5_attribution_patch_fraction":float(df.causal_in_top5_attribution_patch.mean()),
       "layer_causal_shift_median":{str(li):float(df[f"causal_shift_L{li}"].median()) for li in layers},
-      "task_definition":"Matched natural-language state-copying stories; causal A/B swap flips key location; distractor A/B token is counter-swapped to preserve unigram counts.",
+      "layer_distractor_abs_shift_median":{str(li):float(np.abs(df[f"distractor_shift_L{li}"]).median()) for li in layers},
+      "task_definition":"Matched natural-language state-copying stories. Balanced A/B pair preserves unigram counts for behavior/probes. Mechanistic causal and distractor donors each differ from base at exactly one token.",
       "claim_boundary":"Activation patching and scalar-logit Jacobian gradients are intervention/local-sensitivity diagnostics. They do not by themselves establish a complete causal graph of the model."
     }
     # paired relevant-vs-distractor effect tests

@@ -1,0 +1,45 @@
+name: Pair-profile n12 degree family counts
+
+on:
+  push:
+    branches:
+      - pair-profile-n12-degree-counts
+  workflow_dispatch:
+
+jobs:
+  count:
+    name: ${{ matrix.label }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: maxdeg5
+            opts: "-c -D5"
+          - label: mindeg6
+            opts: "-c -d6"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install nauty
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nauty
+          GENG="$(command -v geng || command -v nauty-geng || true)"
+          test -n "$GENG"
+          echo "GENG=$GENG" >> "$GITHUB_ENV"
+      - name: Count family
+        shell: bash
+        env:
+          OPTS: ${{ matrix.opts }}
+        run: |
+          set -o pipefail
+          /usr/bin/time -v bash -c 'eval "\"$GENG\" -u $OPTS 12" 1>/dev/null 2>geng_count.err'
+          cat geng_count.err
+      - name: Upload count
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: n12-count-${{ matrix.label }}
+          path: geng_count.err

@@ -1,0 +1,28 @@
+name: Pair-profile n12 NCV benchmark
+
+on:
+  push:
+    branches:
+      - pair-profile-n12-ncv-benchmark
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install nauty
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nauty libnauty2-dev
+          GENG="$(command -v geng || command -v nauty-geng)"
+          echo "GENG=$GENG" >> "$GITHUB_ENV"
+      - name: Build
+        run: |
+          g++ -O3 -march=native -std=c++20 tools/ncv_scan12.cpp -lnauty -o ncv_scan12
+      - name: Count NCV graphs in degree-5-6 family
+        run: |
+          set -o pipefail
+          /usr/bin/time -v bash -c '"$GENG" -cq -d5 -D6 12 | ./ncv_scan12 bench' 2>bench.err | tee bench.txt
+          cat bench.err

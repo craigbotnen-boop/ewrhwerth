@@ -1,0 +1,93 @@
+name: Pair-profile n12 near-regular screens
+
+on:
+  push:
+    branches:
+      - pair-profile-n12-near-regular
+  workflow_dispatch:
+
+jobs:
+  scan:
+    name: degrees ${{ matrix.r }}-${{ matrix.rp }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {r: 1, rp: 2}
+          - {r: 2, rp: 3}
+          - {r: 3, rp: 4}
+          - {r: 4, rp: 5}
+          - {r: 5, rp: 6}
+          - {r: 6, rp: 7}
+          - {r: 7, rp: 8}
+          - {r: 8, rp: 9}
+          - {r: 9, rp: 10}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install nauty
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nauty
+          GENG="$(command -v geng || command -v nauty-geng || true)"
+          test -n "$GENG"
+          echo "GENG=$GENG" >> "$GITHUB_ENV"
+      - name: Build scanner
+        shell: bash
+        run: |
+          g++ -O3 -march=native -std=c++20 tools/pair_profile_disconnected12.cpp -o scan12
+      - name: Exhaust family
+        shell: bash
+        env:
+          R: ${{ matrix.r }}
+          RP: ${{ matrix.rp }}
+        run: |
+          set +e
+          "$GENG" -cq -d"$R" -D"$RP" 12 2>geng.err \
+            | ./scan12 p2only 2>scanner.err \
+            | tee result.txt
+          rc=${PIPESTATUS[1]}
+          echo "scanner_rc=$rc" >> result.txt
+          exit "$rc"
+      - name: Upload result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: n12-near-regular-${{ matrix.r }}-${{ matrix.rp }}
+          path: |
+            result.txt
+            scanner.err
+            geng.err
+
+  summarize:
+    needs: scan
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: n12-near-regular-*
+          path: artifacts
+      - name: Summarize
+        shell: bash
+        env:
+          MATRIX_RESULT: ${{ needs.scan.result }}
+        run: |
+          echo "PAIR_PROFILE_N12_NEAR_REGULAR_SUMMARY" | tee summary.txt
+          echo "matrix_result=$MATRIX_RESULT" | tee -a summary.txt
+          grep -RH -E 'P2_COLLISION_FOUND|SCAN_COMPLETE graphs=' artifacts | tee -a summary.txt || true
+          if grep -Rq '^P2_COLLISION_FOUND' artifacts; then
+            echo "STATUS=P2_COLLISION_FOUND" | tee -a summary.txt
+            grep -RH -A4 '^P2_COLLISION_FOUND' artifacts | tee -a summary.txt
+          else
+            test "$MATRIX_RESULT" = "success"
+            echo "STATUS=P2_INJECTIVE_ON_NEAR_REGULAR_N12" | tee -a summary.txt
+          fi
+      - name: Upload summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: n12-near-regular-summary
+          path: summary.txt

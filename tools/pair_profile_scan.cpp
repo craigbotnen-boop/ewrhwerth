@@ -151,58 +151,38 @@ static bool exact_full_equal(u64 e1,u64 e2,int n){auto A=full_powers(e1,n),B=ful
 static std::vector<FullRec> i4_rows(const Full&F){int n=F.n;std::vector<FullRec>rows;rows.reserve(n);for(int x=0;x<n;++x){std::vector<FullRec> inner;inner.reserve(n);for(int y=0;y<n;++y){FullRec r;r.reserve(2*n);for(int k=0;k<n;++k)r.push_back(F.p[(size_t)k*n*n+x*n+y]);for(int k=0;k<n;++k)r.push_back(F.p[(size_t)k*n*n+y*n+y]);inner.push_back(std::move(r));}std::sort(inner.begin(),inner.end());FullRec row;row.reserve(n+2*n*n);for(int k=0;k<n;++k)row.push_back(F.p[(size_t)k*n*n+x*n+x]);for(auto &r:inner)row.insert(row.end(),r.begin(),r.end());rows.push_back(std::move(row));}std::sort(rows.begin(),rows.end());return rows;}
 static bool exact_i4_equal(u64 e1,u64 e2,int n){return i4_rows(full_powers(e1,n))==i4_rows(full_powers(e2,n));}
 
-struct Bloom{u64 bits;int k;std::vector<u64>a;Bloom(){}Bloom(int exp,int kk):bits(1ULL<<exp),k(kk),a((1ULL<<exp)/64){};bool test(u64 h1,u64 h2)const{u64 mask=bits-1;h2|=1;for(int i=0;i<k;++i){u64 p=(h1+(u64)i*h2)&mask;if(!(a[p>>6]&(1ULL<<(p&63))))return false;}return true;}void add(u64 h1,u64 h2){u64 mask=bits-1;h2|=1;for(int i=0;i<k;++i){u64 p=(h1+(u64)i*h2)&mask;a[p>>6]|=1ULL<<(p&63);}}u64 setbits()const{u64 z=0;for(u64 x:a)z+=__builtin_popcountll(x);return z;}void save(const char*fn)const{std::ofstream f(fn,std::ios::binary);u64 magic=0x424c4f4f4d763031ULL;f.write((char*)&magic,8);f.write((char*)&bits,8);f.write((char*)&k,4);f.write((char*)a.data(),a.size()*8);}static Bloom load(const char*fn){std::ifstream f(fn,std::ios::binary);u64 magic,bits;int k;f.read((char*)&magic,8);f.read((char*)&bits,8);f.read((char*)&k,4);if(magic!=0x424c4f4f4d763031ULL){std::cerr<<"bad bloom
-";exit(2);}int exp=0;while((1ULL<<exp)<bits)++exp;Bloom b(exp,k);f.read((char*)b.a.data(),b.a.size()*8);return b;}};
+struct Bloom{u64 bits;int k;std::vector<u64>a;Bloom(){}Bloom(int exp,int kk):bits(1ULL<<exp),k(kk),a((1ULL<<exp)/64){};bool test(u64 h1,u64 h2)const{u64 mask=bits-1;h2|=1;for(int i=0;i<k;++i){u64 p=(h1+(u64)i*h2)&mask;if(!(a[p>>6]&(1ULL<<(p&63))))return false;}return true;}void add(u64 h1,u64 h2){u64 mask=bits-1;h2|=1;for(int i=0;i<k;++i){u64 p=(h1+(u64)i*h2)&mask;a[p>>6]|=1ULL<<(p&63);}}u64 setbits()const{u64 z=0;for(u64 x:a)z+=__builtin_popcountll(x);return z;}void save(const char*fn)const{std::ofstream f(fn,std::ios::binary);u64 magic=0x424c4f4f4d763031ULL;f.write((char*)&magic,8);f.write((char*)&bits,8);f.write((char*)&k,4);f.write((char*)a.data(),a.size()*8);}static Bloom load(const char*fn){std::ifstream f(fn,std::ios::binary);u64 magic,bits;int k;f.read((char*)&magic,8);f.read((char*)&bits,8);f.read((char*)&k,4);if(magic!=0x424c4f4f4d763031ULL){std::cerr<<"bad bloom\n";exit(2);}int exp=0;while((1ULL<<exp)<bits)++exp;Bloom b(exp,k);f.read((char*)b.a.data(),b.a.size()*8);return b;}};
 
 struct Table{size_t sz,mask;std::vector<u64> h,edge;std::vector<u32> count;Table(int exp,bool counts):sz(1ULL<<exp),mask(sz-1),h(sz),edge(sz,UINT64_MAX),count(counts?sz:0){};};
 
-static void progress(u64 c,const char*tag){if(c%10000000ULL==0){std::cerr<<tag<<" graphs="<<c<<"
-";}}
+static void progress(u64 c,const char*tag){if(c%10000000ULL==0){std::cerr<<tag<<" graphs="<<c<<"\n";}}
 
 static int bench10(){
     Table ptab(24,true),qtab(24,true);u64 N=0,p_groups=0,q_groups=0,p_pairs=0;std::string line;Parsed g;
-    while(std::getline(std::cin,line)){if(!parse_g6(line,g)||g.n!=10){std::cerr<<"bad graph6
-";return 2;}Small s;build_small(g,s);auto ph=p2_hash(s);auto qh=q2_hash(s);
+    while(std::getline(std::cin,line)){if(!parse_g6(line,g)||g.n!=10){std::cerr<<"bad graph6\n";return 2;}Small s;build_small(g,s);auto ph=p2_hash(s);auto qh=q2_hash(s);
         auto ins=[&](Table&T,u64 hv,bool isp2,u64 &groups,u64 &pairs){size_t pos=hv&T.mask;for(;;){if(T.edge[pos]==UINT64_MAX){T.h[pos]=hv;T.edge[pos]=g.edge;T.count[pos]=1;return;}if(T.h[pos]==hv){bool eq=isp2?exact_p2_equal(T.edge[pos],g.edge,10):exact_q2_equal(T.edge[pos],g.edge,10);if(eq){if(T.count[pos]==1)++groups;++T.count[pos];++pairs;return;}}pos=(pos+1)&T.mask;}};
         ins(ptab,ph.first,true,p_groups,p_pairs);u64 dummy=0;ins(qtab,qh.first,false,q_groups,dummy);++N;progress(N,"bench10");
     }
-    std::cout<<"BENCH10 graphs="<<N<<" p2_collision_groups="<<p_groups<<" p2_duplicate_graphs="<<p_pairs<<" q2_collision_groups="<<q_groups<<"
-";
-    bool ok=N==12005168ULL && p_groups==0 && q_groups==8874ULL; std::cout<<(ok?"BENCH10_PASS":"BENCH10_FAIL")<<"
-";return ok?0:3;
+    std::cout<<"BENCH10 graphs="<<N<<" p2_collision_groups="<<p_groups<<" p2_duplicate_graphs="<<p_pairs<<" q2_collision_groups="<<q_groups<<"\n";
+    bool ok=N==12005168ULL && p_groups==0 && q_groups==8874ULL; std::cout<<(ok?"BENCH10_PASS":"BENCH10_FAIL")<<"\n";return ok?0:3;
 }
 
 static int phase1(const char*out){
-    Bloom once(33,5),rep(32,4);u64 N=0,trig=0;std::string line;Parsed g;while(std::getline(std::cin,line)){if(!parse_g6(line,g)||g.n!=11)return 2;Small s;build_small(g,s);auto h=u2_hash(s);if(once.test(h.first,h.second)){rep.add(h.first,h.second);++trig;}else once.add(h.first,h.second);++N;progress(N,"phase1");}rep.save(out);std::cout<<"PHASE1 graphs="<<N<<" repeat_triggers="<<trig<<" rep_setbits="<<rep.setbits()<<" rep_fraction="<<(double)rep.setbits()/rep.bits<<"
-";return 0;}
+    Bloom once(33,5),rep(32,4);u64 N=0,trig=0;std::string line;Parsed g;while(std::getline(std::cin,line)){if(!parse_g6(line,g)||g.n!=11)return 2;Small s;build_small(g,s);auto h=u2_hash(s);if(once.test(h.first,h.second)){rep.add(h.first,h.second);++trig;}else once.add(h.first,h.second);++N;progress(N,"phase1");}rep.save(out);std::cout<<"PHASE1 graphs="<<N<<" repeat_triggers="<<trig<<" rep_setbits="<<rep.setbits()<<" rep_fraction="<<(double)rep.setbits()/rep.bits<<"\n";return 0;}
 static int phase2(const char*u2file,const char*out){
-    Bloom u2=Bloom::load(u2file),once(32,4),rep(31,4);u64 N=0,sel=0,trig=0;std::string line;Parsed g;while(std::getline(std::cin,line)){if(!parse_g6(line,g)||g.n!=11)return 2;Small s;build_small(g,s);auto h=u2_hash(s);if(u2.test(h.first,h.second)){++sel;auto p=p2_hash(s);if(once.test(p.first,p.second)){rep.add(p.first,p.second);++trig;}else once.add(p.first,p.second);}++N;progress(N,"phase2");}rep.save(out);std::cout<<"PHASE2 graphs="<<N<<" u2_selected="<<sel<<" p2_repeat_triggers="<<trig<<" p2rep_setbits="<<rep.setbits()<<" p2rep_fraction="<<(double)rep.setbits()/rep.bits<<"
-";return 0;}
+    Bloom u2=Bloom::load(u2file),once(32,4),rep(31,4);u64 N=0,sel=0,trig=0;std::string line;Parsed g;while(std::getline(std::cin,line)){if(!parse_g6(line,g)||g.n!=11)return 2;Small s;build_small(g,s);auto h=u2_hash(s);if(u2.test(h.first,h.second)){++sel;auto p=p2_hash(s);if(once.test(p.first,p.second)){rep.add(p.first,p.second);++trig;}else once.add(p.first,p.second);}++N;progress(N,"phase2");}rep.save(out);std::cout<<"PHASE2 graphs="<<N<<" u2_selected="<<sel<<" p2_repeat_triggers="<<trig<<" p2rep_setbits="<<rep.setbits()<<" p2rep_fraction="<<(double)rep.setbits()/rep.bits<<"\n";return 0;}
 static int phase3(const char*u2file,const char*p2file,const char*result){
     Bloom u2=Bloom::load(u2file),p2rep=Bloom::load(p2file);Table tab(24,false);u64 N=0,u2sel=0,p2sel=0,fullcoll=0;std::string line;Parsed g;std::ofstream out(result);bool found=false;
-    while(std::getline(std::cin,line)){if(!parse_g6(line,g)||g.n!=11)return 2;if(found){++N;continue;}Small s;build_small(g,s);auto uh=u2_hash(s);if(u2.test(uh.first,uh.second)){++u2sel;auto ph=p2_hash(s);if(p2rep.test(ph.first,ph.second)){++p2sel;auto fh=full_hash(g.edge,11);size_t pos=fh.first&tab.mask;size_t probes=0;for(;;){if(tab.edge[pos]==UINT64_MAX){tab.h[pos]=fh.first;tab.edge[pos]=g.edge;break;}if(tab.h[pos]==fh.first && exact_full_equal(tab.edge[pos],g.edge,11)){++fullcoll;if(!exact_i4_equal(tab.edge[pos],g.edge,11)){std::string a=encode_g6(tab.edge[pos],11),b=encode_g6(g.edge,11);std::cout<<"WITNESS_FOUND n=11 graph6_A="<<a<<" graph6_B="<<b<<"
-";out<<"WITNESS_FOUND
-n=11
-graph6_A="<<a<<"
-graph6_B="<<b<<"
-";out.flush();return 0;}break;}pos=(pos+1)&tab.mask;if(++probes>tab.sz/2){std::cerr<<"table saturated
-";return 7;}}
+    while(std::getline(std::cin,line)){if(!parse_g6(line,g)||g.n!=11)return 2;if(found){++N;continue;}Small s;build_small(g,s);auto uh=u2_hash(s);if(u2.test(uh.first,uh.second)){++u2sel;auto ph=p2_hash(s);if(p2rep.test(ph.first,ph.second)){++p2sel;auto fh=full_hash(g.edge,11);size_t pos=fh.first&tab.mask;size_t probes=0;for(;;){if(tab.edge[pos]==UINT64_MAX){tab.h[pos]=fh.first;tab.edge[pos]=g.edge;break;}if(tab.h[pos]==fh.first && exact_full_equal(tab.edge[pos],g.edge,11)){++fullcoll;if(!exact_i4_equal(tab.edge[pos],g.edge,11)){std::string a=encode_g6(tab.edge[pos],11),b=encode_g6(g.edge,11);std::cout<<"WITNESS_FOUND n=11 graph6_A="<<a<<" graph6_B="<<b<<"\n";out<<"WITNESS_FOUND\nn=11\ngraph6_A="<<a<<"\ngraph6_B="<<b<<"\n";out.flush();return 0;}break;}pos=(pos+1)&tab.mask;if(++probes>tab.sz/2){std::cerr<<"table saturated\n";return 7;}}
         }}++N;progress(N,"phase3");}
-    if(!found){std::cout<<"PHASE3 graphs="<<N<<" u2_selected="<<u2sel<<" p2_selected="<<p2sel<<" full_i3_collisions="<<fullcoll<<" WITNESS_NONE
-";out<<"WITNESS_NONE
-n=11
-graphs="<<N<<"
-full_i3_collisions="<<fullcoll<<"
-";}return 0;
+    if(!found){std::cout<<"PHASE3 graphs="<<N<<" u2_selected="<<u2sel<<" p2_selected="<<p2sel<<" full_i3_collisions="<<fullcoll<<" WITNESS_NONE\n";out<<"WITNESS_NONE\nn=11\ngraphs="<<N<<"\nfull_i3_collisions="<<fullcoll<<"\n";}return 0;
 }
 
 static int selftest(){
     Parsed a,b; if(!parse_g6("BW",a)||!parse_g6("Bw",b)) return 2;
     bool ok=(a.n==3 && b.n==3 && __builtin_popcountll(a.edge)==2 && __builtin_popcountll(b.edge)==3 && encode_g6(a.edge,3)=="BW" && encode_g6(b.edge,3)=="Bw");
     u64 e=0; for(int k=0;k<55;k+=3) e|=1ULL<<k; std::string z=encode_g6(e,11); Parsed c; ok=ok&&parse_g6(z,c)&&c.edge==e&&c.n==11;
-    std::cout<<"SELFTEST "<<(ok?"PASS":"FAIL")<<"
-"; return ok?0:5;
+    std::cout<<"SELFTEST "<<(ok?"PASS":"FAIL")<<"\n"; return ok?0:5;
 }
 
-int main(int argc,char**argv){if(argc<2){std::cerr<<"modes: selftest bench10 phase1 OUT phase2 U2 OUT phase3 U2 P2 RESULT
-";return 2;}std::string m=argv[1];if(m=="selftest")return selftest();if(m=="bench10")return bench10();if(m=="phase1"&&argc==3)return phase1(argv[2]);if(m=="phase2"&&argc==4)return phase2(argv[2],argv[3]);if(m=="phase3"&&argc==5)return phase3(argv[2],argv[3],argv[4]);return 2;}
+int main(int argc,char**argv){if(argc<2){std::cerr<<"modes: selftest bench10 phase1 OUT phase2 U2 OUT phase3 U2 P2 RESULT\n";return 2;}std::string m=argv[1];if(m=="selftest")return selftest();if(m=="bench10")return bench10();if(m=="phase1"&&argc==3)return phase1(argv[2]);if(m=="phase2"&&argc==4)return phase2(argv[2],argv[3]);if(m=="phase3"&&argc==5)return phase3(argv[2],argv[3],argv[4]);return 2;}

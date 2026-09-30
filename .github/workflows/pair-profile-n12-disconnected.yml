@@ -1,0 +1,80 @@
+name: Pair-profile n12 disconnected minimality
+
+on:
+  push:
+    branches:
+      - pair-profile-n12-disconnected
+  workflow_dispatch:
+
+jobs:
+  search:
+    name: Exhaust disconnected n12 without isolates
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install nauty
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nauty
+          GENG="$(command -v geng || command -v nauty-geng || true)"
+          test -n "$GENG"
+          echo "GENG=$GENG" >> "$GITHUB_ENV"
+          "$GENG" -V || true
+
+      - name: Build exact scanner
+        shell: bash
+        run: |
+          g++ -O3 -march=native -std=c++20 tools/pair_profile_disconnected12.cpp -o pair_profile_disconnected12
+          sha256sum tools/pair_profile_disconnected12.cpp tools/compose_disconnected12.py pair_profile_disconnected12 | tee build_sha256.txt
+
+      - name: Generate connected component catalogs
+        shell: bash
+        run: |
+          mkdir -p catalogs
+          for n in 2 3 4 5 6 7 8 9 10; do
+            "$GENG" -cq "$n" > "catalogs/conn${n}.g6"
+            wc -l "catalogs/conn${n}.g6"
+          done
+
+      - name: Exhaust all disconnected 12-vertex graphs with minimum degree at least 1
+        shell: bash
+        run: |
+          set +e
+          python3 tools/compose_disconnected12.py catalogs 2>composer.err \
+            | ./pair_profile_disconnected12 2>scanner.err \
+            | tee result.txt
+          scanner_rc=${PIPESTATUS[1]}
+          echo "scanner_rc=$scanner_rc" | tee -a result.txt
+          tail -n 40 composer.err || true
+          tail -n 40 scanner.err || true
+          exit "$scanner_rc"
+
+      - name: Adjudicate
+        if: success()
+        shell: bash
+        run: |
+          if grep -q '^WITNESS_FOUND' result.txt; then
+            echo "STATUS=WITNESS_FOUND" | tee adjudication.txt
+            grep -A5 '^WITNESS_FOUND' result.txt | tee -a adjudication.txt
+            exit 0
+          fi
+          grep -q 'SCAN_COMPLETE graphs=12344252' result.txt
+          grep -q 'WITNESS_NONE' result.txt
+          grep -q 'COMPOSER generated=12344252 expected=12344252' composer.err
+          echo "STATUS=WITNESS_NONE_EXHAUSTIVE_DISCONNECTED_NO_ISOLATES" | tee adjudication.txt
+          echo "All 12,344,252 disconnected unlabeled n=12 graphs with no isolated vertices were exhausted." | tee -a adjudication.txt
+
+      - name: Upload receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pair-profile-n12-disconnected
+          path: |
+            build_sha256.txt
+            composer.err
+            scanner.err
+            result.txt
+            adjudication.txt

@@ -1,0 +1,30 @@
+name: I3-I4 n12 cospectral-filter benchmark
+
+on:
+  push:
+    branches:
+      - pair-profile-n12-separator-scanner
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install nauty
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nauty
+          GENG="$(command -v geng || command -v nauty-geng)"
+          echo "GENG=$GENG" >> "$GITHUB_ENV"
+      - name: Build
+        run: |
+          g++ -O3 -march=native -std=c++20 tools/i3i4_cospectral_filter12.cpp -o scan
+      - name: Scan connected degree-5-6 family
+        run: |
+          set -o pipefail
+          /usr/bin/time -v bash -c '"$GENG" -cq -d5 -D6 12 | ./scan phase1 repeats.bloom' 2>time.err | tee phase1.txt
+          cat time.err
+          "$GENG" -cq -d5 -D6 12 | ./scan phase2 repeats.bloom | tee phase2.txt
+          grep -q 'SEPARATOR_NONE' phase2.txt

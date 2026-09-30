@@ -1,0 +1,104 @@
+name: Pair-profile n12 width-2 Bloom screens
+
+on:
+  push:
+    branches:
+      - pair-profile-n12-width2-bloom
+  workflow_dispatch:
+
+jobs:
+  scan:
+    name: degrees ${{ matrix.lo }}-${{ matrix.hi }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {lo: 3, hi: 5}
+          - {lo: 4, hi: 6}
+          - {lo: 5, hi: 7}
+          - {lo: 6, hi: 8}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install nauty
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nauty
+          GENG="$(command -v geng || command -v nauty-geng || true)"
+          test -n "$GENG"
+          echo "GENG=$GENG" >> "$GITHUB_ENV"
+
+      - name: Build scanner
+        shell: bash
+        run: |
+          g++ -O3 -march=native -std=c++20 tools/p2_bloom12.cpp -o p2_bloom12
+          sha256sum tools/p2_bloom12.cpp p2_bloom12 | tee build_sha256.txt
+
+      - name: Phase 1
+        shell: bash
+        env:
+          LO: ${{ matrix.lo }}
+          HI: ${{ matrix.hi }}
+        run: |
+          set -o pipefail
+          "$GENG" -cq -d"$LO" -D"$HI" 12 2>geng1.err \
+            | ./p2_bloom12 phase1 repeats.bloom 2>phase1.err \
+            | tee phase1.txt
+
+      - name: Phase 2 exact collision test
+        shell: bash
+        env:
+          LO: ${{ matrix.lo }}
+          HI: ${{ matrix.hi }}
+        run: |
+          set -o pipefail
+          "$GENG" -cq -d"$LO" -D"$HI" 12 2>geng2.err \
+            | ./p2_bloom12 phase2 repeats.bloom 2>phase2.err \
+            | tee phase2.txt
+
+      - name: Upload result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: n12-width2-bloom-${{ matrix.lo }}-${{ matrix.hi }}
+          path: |
+            build_sha256.txt
+            phase1.txt
+            phase1.err
+            phase2.txt
+            phase2.err
+            geng1.err
+            geng2.err
+
+  summarize:
+    needs: scan
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: n12-width2-bloom-*
+          path: artifacts
+      - name: Summarize
+        shell: bash
+        env:
+          MATRIX_RESULT: ${{ needs.scan.result }}
+        run: |
+          echo "PAIR_PROFILE_N12_WIDTH2_BLOOM_SUMMARY" | tee summary.txt
+          echo "matrix_result=$MATRIX_RESULT" | tee -a summary.txt
+          grep -RH -E '^PHASE1 |^PHASE2 |^P2_COLLISION_FOUND' artifacts | tee -a summary.txt || true
+          if grep -Rq '^P2_COLLISION_FOUND' artifacts; then
+            echo "STATUS=P2_COLLISION_FOUND" | tee -a summary.txt
+            grep -RH -A4 '^P2_COLLISION_FOUND' artifacts | tee -a summary.txt
+          else
+            test "$MATRIX_RESULT" = "success"
+            echo "STATUS=P2_INJECTIVE_ON_WIDTH2_CENTRAL_FAMILIES" | tee -a summary.txt
+          fi
+      - name: Upload summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: n12-width2-bloom-summary
+          path: summary.txt

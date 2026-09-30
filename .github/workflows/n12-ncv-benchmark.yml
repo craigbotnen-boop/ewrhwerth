@@ -21,8 +21,8 @@ jobs:
       - name: Build
         run: |
           g++ -O3 -march=native -std=c++20 tools/ncv_scan12.cpp -lnauty -o ncv_scan12
-      - name: Count NCV graphs in degree-5-6 family
+      - name: Count NCV graphs in full-space residue sample
         run: |
           set -o pipefail
-          /usr/bin/time -v bash -c '"$GENG" -cq -d5 -D6 12 | ./ncv_scan12 bench' 2>bench.err | tee bench.txt
+          /usr/bin/time -v bash -c '"$GENG" -cq 12 0/10000 | ./ncv_scan12 bench' 2>bench.err | tee bench.txt
           cat bench.err

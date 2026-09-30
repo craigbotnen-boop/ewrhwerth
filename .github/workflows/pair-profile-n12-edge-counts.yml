@@ -1,0 +1,52 @@
+name: Pair-profile n12 edge-count tables
+
+on:
+  push:
+    branches:
+      - pair-profile-n12-edge-counts
+  workflow_dispatch:
+
+jobs:
+  count:
+    name: ${{ matrix.label }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: maxdeg5
+            opts: "-c -D5"
+            lo: 11
+            hi: 30
+          - label: mindeg6
+            opts: "-c -d6"
+            lo: 36
+            hi: 66
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install nauty
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nauty
+          GENG="$(command -v geng || command -v nauty-geng || true)"
+          test -n "$GENG"
+          echo "GENG=$GENG" >> "$GITHUB_ENV"
+      - name: Count exact edge classes
+        shell: bash
+        env:
+          OPTS: ${{ matrix.opts }}
+          LO: ${{ matrix.lo }}
+          HI: ${{ matrix.hi }}
+        run: |
+          : > edge_counts.txt
+          for m in $(seq "$LO" "$HI"); do
+            line=$("$GENG" -u $OPTS 12 "$m:$m" 2>&1 >/dev/null | tail -n 1)
+            echo "m=$m $line" | tee -a edge_counts.txt
+          done
+      - name: Upload table
+        uses: actions/upload-artifact@v4
+        with:
+          name: n12-edge-counts-${{ matrix.label }}
+          path: edge_counts.txt

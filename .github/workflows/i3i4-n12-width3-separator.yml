@@ -1,0 +1,110 @@
+name: I3-I4 n12 width-3 separator search
+
+on:
+  push:
+    branches:
+      - pair-profile-n12-width3-separator
+  workflow_dispatch:
+
+jobs:
+  scan:
+    name: degrees ${{ matrix.lo }}-${{ matrix.hi }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {lo: 3, hi: 6}
+          - {lo: 4, hi: 7}
+          - {lo: 5, hi: 8}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install nauty
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nauty
+          GENG="$(command -v geng || command -v nauty-geng || true)"
+          test -n "$GENG"
+          echo "GENG=$GENG" >> "$GITHUB_ENV"
+      - name: Build exact scanner
+        shell: bash
+        run: |
+          g++ -O3 -march=native -std=c++20 tools/i3i4_cospectral_filter12.cpp -o scan12
+          sha256sum tools/i3i4_cospectral_filter12.cpp scan12 | tee build_sha256.txt
+      - name: Phase 1 repeated-P2 hashes among cospectral-vertex graphs
+        shell: bash
+        env:
+          LO: ${{ matrix.lo }}
+          HI: ${{ matrix.hi }}
+        run: |
+          set -o pipefail
+          "$GENG" -cq -d"$LO" -D"$HI" 12 2>geng1.err \
+            | ./scan12 phase1 repeats.bloom 2>phase1.err \
+            | tee phase1.txt
+      - name: Phase 2 exact full-I3 and grouped-I4 adjudication
+        shell: bash
+        env:
+          LO: ${{ matrix.lo }}
+          HI: ${{ matrix.hi }}
+        run: |
+          set -o pipefail
+          "$GENG" -cq -d"$LO" -D"$HI" 12 2>geng2.err \
+            | ./scan12 phase2 repeats.bloom 2>phase2.err \
+            | tee phase2.txt
+          if grep -q '^SEPARATOR_FOUND' phase2.txt; then
+            exit 0
+          fi
+          grep -q 'SEPARATOR_NONE' phase2.txt
+          n1=$(sed -nE 's/^PHASE1 total=([0-9]+).*/\1/p' phase1.txt)
+          n2=$(sed -nE 's/^PHASE2 total=([0-9]+).*/\1/p' phase2.txt)
+          test -n "$n1"
+          test "$n1" = "$n2"
+      - name: Upload result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: n12-width3-separator-${{ matrix.lo }}-${{ matrix.hi }}
+          path: |
+            build_sha256.txt
+            phase1.txt
+            phase1.err
+            phase2.txt
+            phase2.err
+            geng1.err
+            geng2.err
+
+  summarize:
+    needs: scan
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: n12-width3-separator-*
+          path: artifacts
+      - name: Summarize
+        shell: bash
+        env:
+          MATRIX_RESULT: ${{ needs.scan.result }}
+        run: |
+          echo "PAIR_PROFILE_N12_WIDTH3_SEPARATOR_SUMMARY" | tee summary.txt
+          echo "matrix_result=$MATRIX_RESULT" | tee -a summary.txt
+          files=$(find artifacts -name phase2.txt -type f | wc -l)
+          echo "result_files=$files" | tee -a summary.txt
+          grep -RH -E '^PHASE1 |^PHASE2 |^SEPARATOR_FOUND' artifacts | tee -a summary.txt || true
+          if grep -Rq '^SEPARATOR_FOUND' artifacts; then
+            echo "STATUS=SEPARATOR_FOUND" | tee -a summary.txt
+            grep -RH -A5 '^SEPARATOR_FOUND' artifacts | tee -a summary.txt
+            exit 0
+          fi
+          test "$MATRIX_RESULT" = "success"
+          test "$files" -eq 3
+          echo "STATUS=NO_SEPARATOR_IN_WIDTH3_CENTRAL_FAMILIES" | tee -a summary.txt
+      - name: Upload summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: n12-width3-separator-summary
+          path: summary.txt

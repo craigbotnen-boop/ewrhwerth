@@ -1,0 +1,43 @@
+name: Pair-profile n12 width-3 counts
+
+on:
+  push:
+    branches:
+      - pair-profile-n12-width3-counts
+  workflow_dispatch:
+
+jobs:
+  count:
+    name: degrees ${{ matrix.lo }}-${{ matrix.hi }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {lo: 3, hi: 6}
+          - {lo: 4, hi: 7}
+          - {lo: 5, hi: 8}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install nauty
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nauty
+          GENG="$(command -v geng || command -v nauty-geng || true)"
+          test -n "$GENG"
+          echo "GENG=$GENG" >> "$GITHUB_ENV"
+      - name: Count family
+        shell: bash
+        env:
+          LO: ${{ matrix.lo }}
+          HI: ${{ matrix.hi }}
+        run: |
+          /usr/bin/time -v bash -c '"$GENG" -u -c -d"$LO" -D"$HI" 12 >/dev/null 2>count.err'
+          cat count.err
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: n12-width3-count-${{ matrix.lo }}-${{ matrix.hi }}
+          path: count.err

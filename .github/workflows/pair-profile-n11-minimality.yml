@@ -1,0 +1,157 @@
+name: Pair-profile n11 minimality
+
+on:
+  push:
+    branches:
+      - pair-profile-n11-search
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    name: Validate n10 controls
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install nauty
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nauty
+          GENG="$(command -v geng || command -v nauty-geng || true)"
+          test -n "$GENG"
+          echo "GENG=$GENG" >> "$GITHUB_ENV"
+          "$GENG" -V || true
+      - name: Build scanner
+        shell: bash
+        run: |
+          g++ -O3 -march=native -std=c++20 tools/pair_profile_scan.cpp -o pair_profile_scan
+          ./pair_profile_scan selftest
+          sha256sum tools/pair_profile_scan.cpp pair_profile_scan | tee build_sha256.txt
+      - name: Reproduce n10 controls
+        shell: bash
+        run: |
+          set -o pipefail
+          "$GENG" -q 10 2>geng10.err | ./pair_profile_scan bench10 2>bench10.err | tee bench10.txt
+      - name: Upload n10 validation
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pair-profile-n10-validation
+          path: |
+            build_sha256.txt
+            geng10.err
+            bench10.err
+            bench10.txt
+
+  search:
+    name: n11 edges ${{ matrix.edge }}
+    needs: benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        edge: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install nauty
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nauty
+          GENG="$(command -v geng || command -v nauty-geng || true)"
+          test -n "$GENG"
+          echo "GENG=$GENG" >> "$GITHUB_ENV"
+      - name: Build scanner
+        shell: bash
+        run: |
+          g++ -O3 -march=native -std=c++20 tools/pair_profile_scan.cpp -o pair_profile_scan
+          ./pair_profile_scan selftest
+      - name: Phase 1 — repeated U2 filter
+        shell: bash
+        env:
+          EDGE: ${{ matrix.edge }}
+        run: |
+          set -o pipefail
+          "$GENG" -q 11 "$EDGE:$EDGE" 2>geng_phase1.err | ./pair_profile_scan phase1 u2_repeat.bloom 2>phase1.err | tee phase1.txt
+      - name: Phase 2 — repeated P2 filter
+        shell: bash
+        env:
+          EDGE: ${{ matrix.edge }}
+        run: |
+          set -o pipefail
+          "$GENG" -q 11 "$EDGE:$EDGE" 2>geng_phase2.err | ./pair_profile_scan phase2 u2_repeat.bloom p2_repeat.bloom 2>phase2.err | tee phase2.txt
+      - name: Phase 3 — exact I3 / grouped I4 test
+        shell: bash
+        env:
+          EDGE: ${{ matrix.edge }}
+        run: |
+          set +e
+          "$GENG" -q 11 "$EDGE:$EDGE" 2>geng_phase3.err | ./pair_profile_scan phase3 u2_repeat.bloom p2_repeat.bloom n11_result.txt 2>phase3.err | tee phase3.txt
+          scanner_rc=${PIPESTATUS[1]}
+          exit "$scanner_rc"
+      - name: Upload shard result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pair-profile-n11-edge-${{ matrix.edge }}
+          path: |
+            phase1.txt
+            phase1.err
+            geng_phase1.err
+            phase2.txt
+            phase2.err
+            geng_phase2.err
+            phase3.txt
+            phase3.err
+            geng_phase3.err
+            n11_result.txt
+
+  summarize:
+    name: Summarize exhaustive n11 search
+    needs: search
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: pair-profile-n11-edge-*
+          path: artifacts
+      - name: Build summary
+        shell: bash
+        env:
+          MATRIX_RESULT: ${{ needs.search.result }}
+        run: |
+          set -u
+          result_files=$(find artifacts -name n11_result.txt -type f | wc -l)
+          phase1_files=$(find artifacts -name phase1.txt -type f | wc -l)
+          total=$(grep -Rh '^PHASE1 graphs=' artifacts 2>/dev/null | sed -E 's/.*graphs=([0-9]+).*/\1/' | awk '{s+=$1} END{printf "%.0f",s+0}')
+          {
+            echo "PAIR_PROFILE_N11_SUMMARY"
+            echo "matrix_result=$MATRIX_RESULT"
+            echo "result_files=$result_files"
+            echo "phase1_files=$phase1_files"
+            echo "phase1_total_graphs=$total"
+          } | tee summary.txt
+
+          if grep -Rq '^WITNESS_FOUND' artifacts 2>/dev/null; then
+            echo "STATUS=WITNESS_FOUND" | tee -a summary.txt
+            grep -RH -A4 '^WITNESS_FOUND' artifacts | tee -a summary.txt
+            exit 0
+          fi
+
+          if [ "$MATRIX_RESULT" = "success" ] && [ "$result_files" -eq 56 ] && [ "$phase1_files" -eq 56 ] && [ "$total" = "1018997864" ]; then
+            echo "STATUS=WITNESS_NONE_EXHAUSTIVE" | tee -a summary.txt
+            echo "n=11 exhausted with no equal-I3 / unequal-I4 pair." | tee -a summary.txt
+            exit 0
+          fi
+
+          echo "STATUS=INCOMPLETE" | tee -a summary.txt
+          exit 1
+      - name: Upload final summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pair-profile-n11-summary
+          path: summary.txt

@@ -128,12 +128,13 @@ static std::vector<Rec> i4rows(const Full&F){
 static bool i4equal(u128 a,u128 b){return i4rows(powers(a))==i4rows(powers(b));}
 
 struct Slot{u64 h1=0,h2=0,lo=0,hi=UINT64_MAX;};
-int main(){
+int main(int argc,char**argv){
+    bool p2only = (argc>1 && std::string(argv[1])=="p2only");
     const size_t SZ=1ULL<<24, MASK=SZ-1; std::vector<Slot>T(SZ);
     std::string line;u64 n=0,p2c=0,i3c=0;Graph g;
     while(std::getline(std::cin,line)){
         if(!parse_g6(line,g)){std::cerr<<"BAD_GRAPH6 at "<<n<<"\n";return 2;}
-        for(int i=0;i<N;++i)if(pc(g.row[i])==0){std::cerr<<"ISOLATE_PRESENT at "<<n<<"\n";return 3;}
+        if(!p2only) for(int i=0;i<N;++i)if(pc(g.row[i])==0){std::cerr<<"ISOLATE_PRESENT at "<<n<<"\n";return 3;}
         Small s;build_small(g,s);auto h=p2hash(s);u64 lo=(u64)g.edge,hi=(u64)(g.edge>>64);
         size_t pos=h.first&MASK, probes=0;
         for(;;){
@@ -143,6 +144,13 @@ int main(){
                 u128 old=(u128(q.hi)<<64)|q.lo;
                 if(!p2equal(old,g.edge)){std::cerr<<"DOUBLE_HASH_COLLISION_FAIL_CLOSED\n";return 4;}
                 ++p2c;
+                if(p2only){
+                    std::cout<<"P2_COLLISION_FOUND n=12\n";
+                    std::cout<<"graph6_A="<<encode_g6(old)<<"\n";
+                    std::cout<<"graph6_B="<<line<<"\n";
+                    std::cout<<"processed="<<(n+1)<<"\n";
+                    return 0;
+                }
                 if(!i3all_equal(old,g.edge)){
                     std::cerr<<"P2_GROUP_CONTAINS_MULTIPLE_FULL_I3_CLASSES_FAIL_CLOSED\n";
                     std::cerr<<"A="<<encode_g6(old)<<" B="<<line<<"\n";return 5;
@@ -160,6 +168,10 @@ int main(){
             pos=(pos+1)&MASK;if(++probes>SZ/2){std::cerr<<"TABLE_SATURATED\n";return 6;}
         }
         ++n;if(n%1000000ULL==0)std::cerr<<"processed="<<n<<" p2_collisions="<<p2c<<" full_i3_collisions="<<i3c<<"\n";
+    }
+    if(p2only){
+        std::cout<<"SCAN_COMPLETE graphs="<<n<<" p2_collisions="<<p2c<<" P2_COLLISION_NONE\n";
+        return 0;
     }
     std::cout<<"SCAN_COMPLETE graphs="<<n<<" p2_collisions="<<p2c<<" full_i3_collisions="<<i3c<<" WITNESS_NONE\n";
     if(n!=12344252ULL){std::cerr<<"COUNT_MISMATCH expected=12344252 got="<<n<<"\n";return 7;}

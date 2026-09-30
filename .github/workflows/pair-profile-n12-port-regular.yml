@@ -1,0 +1,98 @@
+name: Pair-profile n12 regular-base one-port screen
+
+on:
+  push:
+    branches:
+      - pair-profile-n12-port-regular
+  workflow_dispatch:
+
+jobs:
+  scan:
+    name: base-r${{ matrix.r }} port-d${{ matrix.d }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        r: [2,4,6,8,10]
+        d: [1,2,3,4,5,6,7,8,9,10,11]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install nauty
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nauty
+          GENG="$(command -v geng || command -v nauty-geng || true)"
+          LABELG="$(command -v labelg || command -v nauty-labelg || true)"
+          test -n "$GENG"
+          test -n "$LABELG"
+          echo "GENG=$GENG" >> "$GITHUB_ENV"
+          echo "LABELG=$LABELG" >> "$GITHUB_ENV"
+      - name: Build scanner
+        shell: bash
+        run: |
+          g++ -O3 -march=native -std=c++20 tools/pair_profile_disconnected12.cpp -o scan12
+      - name: Generate, canonicalize, and scan
+        shell: bash
+        env:
+          R: ${{ matrix.r }}
+          D: ${{ matrix.d }}
+        run: |
+          set +e
+          "$GENG" -cq -d"$R" -D"$R" 11 2>geng.err \
+            | python3 tools/augment_regular11_port.py "$D" 2>augment.err \
+            | "$LABELG" -q 2>labelg.err \
+            | LC_ALL=C sort -u \
+            | ./scan12 p2only 2>scanner.err \
+            | tee result.txt
+          rc=${PIPESTATUS[4]}
+          echo "scanner_rc=$rc" >> result.txt
+          exit "$rc"
+      - name: Upload result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: n12-port-r${{ matrix.r }}-d${{ matrix.d }}
+          path: |
+            result.txt
+            geng.err
+            augment.err
+            labelg.err
+            scanner.err
+
+  summarize:
+    needs: scan
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: n12-port-r*-d*
+          path: artifacts
+      - name: Summarize
+        shell: bash
+        env:
+          MATRIX_RESULT: ${{ needs.scan.result }}
+        run: |
+          echo "PAIR_PROFILE_N12_REGULAR_BASE_ONE_PORT_SUMMARY" | tee summary.txt
+          echo "matrix_result=$MATRIX_RESULT" | tee -a summary.txt
+          files=$(find artifacts -name result.txt -type f | wc -l)
+          echo "result_files=$files" | tee -a summary.txt
+          grep -RH -E 'P2_COLLISION_FOUND|SCAN_COMPLETE graphs=' artifacts | tee -a summary.txt || true
+          if grep -Rq '^P2_COLLISION_FOUND' artifacts; then
+            echo "STATUS=P2_COLLISION_FOUND" | tee -a summary.txt
+            grep -RH -A4 '^P2_COLLISION_FOUND' artifacts | tee -a summary.txt
+            exit 0
+          fi
+          test "$MATRIX_RESULT" = "success"
+          test "$files" -eq 55
+          total=$(grep -Rh '^SCAN_COMPLETE graphs=' artifacts | sed -E 's/.*graphs=([0-9]+).*/\1/' | awk '{s+=$1} END{printf "%.0f",s+0}')
+          echo "canonical_graphs_scanned=$total" | tee -a summary.txt
+          echo "STATUS=P2_INJECTIVE_ON_REGULAR_BASE_ONE_PORT_N12" | tee -a summary.txt
+      - name: Upload summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: n12-port-regular-summary
+          path: summary.txt

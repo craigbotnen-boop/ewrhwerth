@@ -1,0 +1,170 @@
+name: Pair-profile n12 exhaustive maxdeg5 and mindeg6
+
+on:
+  push:
+    branches:
+      - pair-profile-n12-max5-min6
+  workflow_dispatch:
+
+jobs:
+  scan:
+    name: ${{ matrix.family }} m=${{ matrix.m }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {family: max5, opts: "-c -D5", m: 11, expected: 473}
+          - {family: max5, opts: "-c -D5", m: 12, expected: 4429}
+          - {family: max5, opts: "-c -D5", m: 13, expected: 25321}
+          - {family: max5, opts: "-c -D5", m: 14, expected: 111141}
+          - {family: max5, opts: "-c -D5", m: 15, expected: 406206}
+          - {family: max5, opts: "-c -D5", m: 16, expected: 1280727}
+          - {family: max5, opts: "-c -D5", m: 17, expected: 3535792}
+          - {family: max5, opts: "-c -D5", m: 18, expected: 8584344}
+          - {family: max5, opts: "-c -D5", m: 19, expected: 18297921}
+          - {family: max5, opts: "-c -D5", m: 20, expected: 34039944}
+          - {family: max5, opts: "-c -D5", m: 21, expected: 54732969}
+          - {family: max5, opts: "-c -D5", m: 22, expected: 75031630}
+          - {family: max5, opts: "-c -D5", m: 23, expected: 86085331}
+          - {family: max5, opts: "-c -D5", m: 24, expected: 80612312}
+          - {family: max5, opts: "-c -D5", m: 25, expected: 59506676}
+          - {family: max5, opts: "-c -D5", m: 26, expected: 32935282}
+          - {family: max5, opts: "-c -D5", m: 27, expected: 12655231}
+          - {family: max5, opts: "-c -D5", m: 28, expected: 2963321}
+          - {family: max5, opts: "-c -D5", m: 29, expected: 325574}
+          - {family: max5, opts: "-c -D5", m: 30, expected: 7848}
+          - {family: min6, opts: "-c -d6", m: 36, expected: 7849}
+          - {family: min6, opts: "-c -d6", m: 37, expected: 325575}
+          - {family: min6, opts: "-c -d6", m: 38, expected: 2963324}
+          - {family: min6, opts: "-c -d6", m: 39, expected: 12658988}
+          - {family: min6, opts: "-c -d6", m: 40, expected: 32992450}
+          - {family: min6, opts: "-c -d6", m: 41, expected: 59833291}
+          - {family: min6, opts: "-c -d6", m: 42, expected: 81654444}
+          - {family: min6, opts: "-c -d6", m: 43, expected: 88296513}
+          - {family: min6, opts: "-c -d6", m: 44, expected: 78470230}
+          - {family: min6, opts: "-c -d6", m: 45, expected: 58901001}
+          - {family: min6, opts: "-c -d6", m: 46, expected: 38148580}
+          - {family: min6, opts: "-c -d6", m: 47, expected: 21695273}
+          - {family: min6, opts: "-c -d6", m: 48, expected: 10997401}
+          - {family: min6, opts: "-c -d6", m: 49, expected: 5036306}
+          - {family: min6, opts: "-c -d6", m: 50, expected: 2110736}
+          - {family: min6, opts: "-c -d6", m: 51, expected: 820145}
+          - {family: min6, opts: "-c -d6", m: 52, expected: 299522}
+          - {family: min6, opts: "-c -d6", m: 53, expected: 104365}
+          - {family: min6, opts: "-c -d6", m: 54, expected: 35271}
+          - {family: min6, opts: "-c -d6", m: 55, expected: 11750}
+          - {family: min6, opts: "-c -d6", m: 56, expected: 3933}
+          - {family: min6, opts: "-c -d6", m: 57, expected: 1340}
+          - {family: min6, opts: "-c -d6", m: 58, expected: 469}
+          - {family: min6, opts: "-c -d6", m: 59, expected: 171}
+          - {family: min6, opts: "-c -d6", m: 60, expected: 67}
+          - {family: min6, opts: "-c -d6", m: 61, expected: 26}
+          - {family: min6, opts: "-c -d6", m: 62, expected: 11}
+          - {family: min6, opts: "-c -d6", m: 63, expected: 5}
+          - {family: min6, opts: "-c -d6", m: 64, expected: 2}
+          - {family: min6, opts: "-c -d6", m: 65, expected: 1}
+          - {family: min6, opts: "-c -d6", m: 66, expected: 1}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install nauty
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nauty
+          GENG="$(command -v geng || command -v nauty-geng || true)"
+          test -n "$GENG"
+          echo "GENG=$GENG" >> "$GITHUB_ENV"
+
+      - name: Build scanner
+        shell: bash
+        run: |
+          g++ -O3 -march=native -std=c++20 tools/p2_bloom12.cpp -o p2_bloom12
+          sha256sum tools/p2_bloom12.cpp p2_bloom12 | tee build_sha256.txt
+
+      - name: Phase 1
+        shell: bash
+        env:
+          OPTS: ${{ matrix.opts }}
+          M: ${{ matrix.m }}
+          EXPECTED: ${{ matrix.expected }}
+        run: |
+          set -o pipefail
+          eval "\"$GENG\" -q $OPTS 12 \"$M:$M\"" 2>geng1.err \
+            | ./p2_bloom12 phase1 repeats.bloom 2>phase1.err \
+            | tee phase1.txt
+          got=$(sed -nE 's/^PHASE1 total=([0-9]+).*/\1/p' phase1.txt)
+          test "$got" = "$EXPECTED"
+
+      - name: Phase 2 exact collision test
+        shell: bash
+        env:
+          OPTS: ${{ matrix.opts }}
+          M: ${{ matrix.m }}
+          EXPECTED: ${{ matrix.expected }}
+        run: |
+          set -o pipefail
+          eval "\"$GENG\" -q $OPTS 12 \"$M:$M\"" 2>geng2.err \
+            | ./p2_bloom12 phase2 repeats.bloom 2>phase2.err \
+            | tee phase2.txt
+          if grep -q '^P2_COLLISION_FOUND' phase2.txt; then
+            exit 0
+          fi
+          got=$(sed -nE 's/^PHASE2 total=([0-9]+).*/\1/p' phase2.txt)
+          test "$got" = "$EXPECTED"
+          grep -q 'P2_COLLISION_NONE' phase2.txt
+
+      - name: Upload result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: n12-${{ matrix.family }}-m${{ matrix.m }}
+          path: |
+            build_sha256.txt
+            phase1.txt
+            phase1.err
+            phase2.txt
+            phase2.err
+            geng1.err
+            geng2.err
+
+  summarize:
+    needs: scan
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: n12-*-m*
+          path: artifacts
+      - name: Summarize
+        shell: bash
+        env:
+          MATRIX_RESULT: ${{ needs.scan.result }}
+        run: |
+          echo "PAIR_PROFILE_N12_MAX5_MIN6_SUMMARY" | tee summary.txt
+          echo "matrix_result=$MATRIX_RESULT" | tee -a summary.txt
+          files=$(find artifacts -name phase2.txt -type f | wc -l)
+          echo "result_files=$files" | tee -a summary.txt
+          if grep -Rq '^P2_COLLISION_FOUND' artifacts; then
+            echo "STATUS=P2_COLLISION_FOUND" | tee -a summary.txt
+            grep -RH -A4 '^P2_COLLISION_FOUND' artifacts | tee -a summary.txt
+            exit 0
+          fi
+          test "$MATRIX_RESULT" = "success"
+          test "$files" -eq 51
+          total1=$(grep -Rh '^PHASE1 total=' artifacts | sed -E 's/^PHASE1 total=([0-9]+).*/\1/' | awk '{s+=$1} END{printf "%.0f",s+0}')
+          total2=$(grep -Rh '^PHASE2 total=' artifacts | sed -E 's/^PHASE2 total=([0-9]+).*/\1/' | awk '{s+=$1} END{printf "%.0f",s+0}')
+          echo "phase1_total=$total1" | tee -a summary.txt
+          echo "phase2_total=$total2" | tee -a summary.txt
+          test "$total1" = "966511512"
+          test "$total2" = "966511512"
+          echo "STATUS=P2_INJECTIVE_ON_MAXDEG5_AND_MINDEG6" | tee -a summary.txt
+      - name: Upload summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: n12-max5-min6-summary
+          path: summary.txt

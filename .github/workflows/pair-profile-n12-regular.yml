@@ -1,0 +1,85 @@
+name: Pair-profile n12 regular screen
+
+on:
+  push:
+    branches:
+      - pair-profile-n12-regular
+  workflow_dispatch:
+
+jobs:
+  scan:
+    name: degree ${{ matrix.r }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        r: [2,3,4,5,6,7,8,9,10,11]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install nauty
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nauty
+          GENG="$(command -v geng || command -v nauty-geng || true)"
+          test -n "$GENG"
+          echo "GENG=$GENG" >> "$GITHUB_ENV"
+      - name: Build scanner
+        shell: bash
+        run: |
+          g++ -O3 -march=native -std=c++20 tools/pair_profile_disconnected12.cpp -o scan12
+      - name: Exhaust connected regular graphs
+        shell: bash
+        env:
+          R: ${{ matrix.r }}
+        run: |
+          set +e
+          "$GENG" -cq -d"$R" -D"$R" 12 2>geng.err \
+            | ./scan12 p2only 2>scanner.err \
+            | tee result.txt
+          rc=${PIPESTATUS[1]}
+          echo "scanner_rc=$rc" >> result.txt
+          exit "$rc"
+      - name: Upload result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: n12-regular-degree-${{ matrix.r }}
+          path: |
+            result.txt
+            scanner.err
+            geng.err
+
+  summarize:
+    needs: scan
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: n12-regular-degree-*
+          path: artifacts
+      - name: Summarize
+        shell: bash
+        env:
+          MATRIX_RESULT: ${{ needs.scan.result }}
+        run: |
+          echo "PAIR_PROFILE_N12_REGULAR_SUMMARY" | tee summary.txt
+          echo "matrix_result=$MATRIX_RESULT" | tee -a summary.txt
+          files=$(find artifacts -name result.txt -type f | wc -l)
+          echo "result_files=$files" | tee -a summary.txt
+          grep -RH -E 'P2_COLLISION_FOUND|SCAN_COMPLETE graphs=' artifacts | tee -a summary.txt || true
+          if grep -Rq '^P2_COLLISION_FOUND' artifacts; then
+            echo "STATUS=P2_COLLISION_FOUND" | tee -a summary.txt
+            exit 0
+          fi
+          test "$MATRIX_RESULT" = "success"
+          test "$files" -eq 10
+          echo "STATUS=P2_INJECTIVE_ON_CONNECTED_REGULAR_N12" | tee -a summary.txt
+      - name: Upload summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: n12-regular-summary
+          path: summary.txt

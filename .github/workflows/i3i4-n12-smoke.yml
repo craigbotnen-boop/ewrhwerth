@@ -1,0 +1,30 @@
+name: I3-I4 n12 separator scanner smoke
+
+on:
+  push:
+    branches:
+      - pair-profile-n12-separator-scanner
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install nauty
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nauty
+          GENG="$(command -v geng || command -v nauty-geng)"
+          echo "GENG=$GENG" >> "$GITHUB_ENV"
+      - name: Build
+        run: |
+          g++ -O3 -march=native -std=c++20 tools/i3i4_bloom12.cpp -o i3i4_bloom12
+      - name: Phase 1
+        run: |
+          "$GENG" -cq -d3 -D3 12 | ./i3i4_bloom12 phase1 repeats.bloom | tee phase1.txt
+      - name: Phase 2
+        run: |
+          "$GENG" -cq -d3 -D3 12 | ./i3i4_bloom12 phase2 repeats.bloom | tee phase2.txt
+          grep -q 'SEPARATOR_NONE' phase2.txt
